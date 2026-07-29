@@ -12,7 +12,7 @@ from logging import getLogger
 from uuid import uuid4
 
 import httpx
-from sqlalchemy import distinct, func, select
+from sqlalchemy import distinct, exists, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -94,7 +94,9 @@ class TelemetryService:
             "data_points_by_provider": self._count_by_provider(db, DataPointSeries),
             "workouts_by_provider": self._count_by_provider(db, EventRecord, category="workout"),
             "sleep_sessions_by_provider": self._count_by_provider(db, EventRecord, category="sleep"),
-            "menstrual_cycles_by_provider": self._count_by_provider(db, EventRecord, category="menstrual_cycle"),
+            "menstrual_tracking_used": bool(
+                db.scalar(select(exists().where(EventRecord.category == "menstrual_cycle")))
+            ),
             "providers": [
                 {
                     "provider": provider_setting.provider,
