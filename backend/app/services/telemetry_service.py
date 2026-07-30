@@ -31,7 +31,7 @@ from app.schemas.auth import ConnectionStatus
 
 logger = getLogger(__name__)
 
-TELEMETRY_SCHEMA_VERSION = 2
+TELEMETRY_SCHEMA_VERSION = 1
 SEND_TIMEOUT_SECONDS = 5.0
 
 

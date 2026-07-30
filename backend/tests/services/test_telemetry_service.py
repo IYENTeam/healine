@@ -56,7 +56,7 @@ class TestBuildPayload:
 
         payload = telemetry_service.build_payload(db, event="daily")
 
-        assert payload["schema_version"] == 2
+        assert payload["schema_version"] == 1
         assert payload["event"] == "daily"
         assert len(payload["instance_id"]) == 32
         assert payload["app_version"]
