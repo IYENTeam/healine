@@ -1,9 +1,9 @@
 ---
 title: "Anonymous Telemetry"
-description: "What anonymous usage data Open Wearables collects, exactly what is in the payload, and how to opt out with a single environment variable."
+description: "What anonymous usage data Open Wearables collects, why each field is there, and how to opt out with a single environment variable."
 keywords: ["open wearables telemetry", "usage telemetry opt out", "anonymous usage statistics", "self-hosted telemetry"]
 "og:title": "Anonymous Telemetry | Open Wearables"
-"og:description": "What anonymous usage data Open Wearables collects, exactly what is in the payload, and how to opt out."
+"og:description": "What anonymous usage data Open Wearables collects, why each field is there, and how to opt out."
 "og:url": "https://docs.openwearables.io/dev-guides/telemetry"
 "og:type": "article"
 "twitter:title": "Anonymous Telemetry | Open Wearables"
@@ -13,18 +13,79 @@ keywords: ["open wearables telemetry", "usage telemetry opt out", "anonymous usa
 
 ## Overview
 
-Open Wearables collects **anonymous usage telemetry** from self-hosted instances. It tells us how many
-instances are alive, which versions they run, and which providers and features are actually used - this
-is what we use to prioritize provider integrations and to know when it is safe to deprecate something.
+Open Wearables collects **anonymous usage telemetry** from self-hosted instances. Telemetry is
+**enabled by default** and can be disabled at any time with a single environment variable. When it is
+enabled, the API logs a notice at startup so it is never running silently.
 
-Telemetry is **enabled by default** and can be disabled with a single environment variable at any time.
+## Why we collect it
+
+Open Wearables is self-hosted, so without telemetry we have no idea how it is used. The data answers
+two questions:
+
+- **What to build next.** Which providers, data types and features are actually used tells us where to
+  invest and what is safe to deprecate.
+- **How big deployments are.** Whether instances serve a handful of test users or thousands of real
+  ones tells us what to optimise for: import performance, sync cadence, storage.
 
 ## What is collected
 
 One small JSON document ("ping"), at most once per 24 hours, plus one on startup (debounced to at most
-one ping per 12 hours, so restarts and redeploys don't send extra data). Everything in it is either an
-aggregate count or a configuration flag:
+one per 12 hours, so restarts and redeploys don't send extra data). Every field is either an aggregate
+count or a configuration flag.
 
+### Instance and runtime
+
+| Field | What it is | Example | Why we track it |
+|-------|------------|---------|-----------------|
+| `instance_id` | Random UUID generated locally on first run and stored in the `telemetry_state` table. Not derived from any secret, hostname or account. | `f11594b65f92...` | Count distinct instances and tell a new install from a restart |
+| `event` | What triggered the ping: `daily` or `startup` | `daily` | Separate scheduled pings from restart pings |
+| `sent_at` | Time the ping was built, UTC | `2026-07-23T04:12:00+00:00` | Order pings and detect gaps |
+| `schema_version` | Version of this payload format | `1` | Parse old and new payloads correctly |
+| `app_version` | Open Wearables version | `0.6.3` | See how fast releases are adopted and which versions are still in use |
+| `git_sha` | Git commit the instance was built from | `abc1234` | Tell releases from custom builds |
+| `python_version` | Python interpreter version | `3.13.1` | Know when it is safe to drop a Python version |
+| `platform` | OS and architecture string from Python's `platform.platform()` | `Linux-6.1.0-x86_64-with-glibc2.36` | Know which OS and CPU targets to test and support |
+| `environment` | The `ENVIRONMENT` setting: `local`, `test`, `staging` or `production` | `production` | Filter dev and CI instances out of usage stats |
+| `instance_age_days` | Days since telemetry first ran on this instance | `41` | Measure retention: how many installs are still alive after a week, a month |
+
+### Usage counts
+
+| Field | What it is | Example | Why we track it |
+|-------|------------|---------|-----------------|
+| `total_users` | Number of rows in the `users` table | `42` | Deployment size |
+| `users_with_active_connection` | Users with at least one active provider connection | `30` | How many users are actually syncing data |
+| `active_connections` | Provider connections with status `active` | `57` | Deployment size and connections per user |
+| `inactive_connections` | Provider connections with status `revoked` or `expired` | `4` | How often connections break, which drives reconnect and token refresh work |
+| `connections_by_provider` | Active connections per provider | `{"garmin": 20, "oura": 15}` | Which providers to prioritise |
+| `data_points_by_provider` | Rows in `data_point_series` per provider | `{"garmin": 1284932}` | Data volume per provider, drives storage and import performance work |
+| `workouts_by_provider` | Workout event records per provider | `{"garmin": 2101}` | Which providers' workout pipelines matter most |
+| `sleep_sessions_by_provider` | Sleep event records per provider | `{"garmin": 1730}` | Same, for sleep |
+| `menstrual_tracking_used` | Whether any menstrual cycle record exists on the instance. A boolean, never a count | `true` | Decide whether to invest in menstrual health features |
+
+### Provider configuration
+
+One entry per row in the `provider_settings` table.
+
+| Field | What it is | Example | Why we track it |
+|-------|------------|---------|-----------------|
+| `provider` | Provider name | `garmin` | Key for the fields below |
+| `is_enabled` | Whether the provider is enabled on this instance | `true` | Configured vs actually used providers |
+| `live_sync_mode` | `webhook` or `pull` | `webhook` | Whether pull-based sync is worth maintaining |
+| `data_granularity` | Per-provider override of 24/7 data granularity: `raw`, `hourly`, `daily` or `null` | `null` | Whether anyone uses the rollup modes |
+
+### Feature flags
+
+| Field | What it is | Example | Why we track it |
+|-------|------------|---------|-----------------|
+| `sentry_enabled` | Whether Sentry error reporting is on | `true` | Know what share of instances we get error reports from |
+| `ingest_workout_samples` | Whether per-second workout samples are stored | `false` | Whether this storage-heavy feature is used |
+| `store_fit_files` | Whether raw FIT files are stored in S3 | `false` | Same, for FIT storage |
+| `historical_sync_on_connect` | Whether historical sync auto-runs after connect | `true` | This flag is scheduled to change its default; tells us when that is safe |
+| `raw_payload_storage` | `disabled`, `log` or `s3` | `s3` | Whether raw payload archival is worth keeping |
+| `outgoing_webhooks_enabled` | Whether outgoing webhooks (Svix) are on | `true` | Adoption of outgoing webhooks |
+| `default_data_granularity` | Instance-wide default granularity: `raw`, `hourly` or `daily` | `raw` | Whether the rollup modes are used |
+
+<Accordion title="Full example payload">
 ```json
 {
   "schema_version": 1,
@@ -60,32 +121,57 @@ aggregate count or a configuration flag:
   }
 }
 ```
-
-The `instance_id` is a random UUID generated locally on first use (stored in the `telemetry_state`
-table). It is not derived from any secret, hostname, or account and cannot be traced back to you.
+</Accordion>
 
 ## What is never collected
 
 - No user data of any kind: no names, emails, IDs, or health data
 - No credentials, tokens, API keys, or secrets
 - No hostnames, IP addresses, or URLs of your deployment
-- No per-user or per-request information - only instance-wide aggregate counts
+- No per-user or per-request information, only instance-wide aggregate counts
 
 Pings are sent to `https://telemetry.mntm.dev`, a collector operated by the Open Wearables team. The
-sending code lives in `backend/app/services/telemetry_service.py` - it is easy to audit.
+sending code lives in `backend/app/services/telemetry_service.py` and is easy to audit.
+
+## What we do with the data
+
+The data is aggregated across instances and used only to decide what to build, what to optimise and
+what to deprecate. It is not sold, shared with third parties, or used to identify or contact anyone.
+
+## Why opt-out and not opt-in
+
+Opt-in telemetry is almost never enabled, so the resulting data represents a tiny, unrepresentative
+slice of users and is useless for the decisions above. We chose opt-out with a single, well-documented
+switch, a startup log notice so it is never silent, and a payload small enough to review in a minute.
 
 ## Opting out
 
-Set one environment variable and restart:
+Set one environment variable in your backend `.env` and restart:
 
 ```bash
 TELEMETRY_ENABLED=false
 ```
 
-This fully disables telemetry: no scheduled task, no startup ping, no HTTP calls. When telemetry
-is enabled, the API logs a notice at startup so it is never running silently.
+This fully disables telemetry: no scheduled task, no startup ping, no HTTP calls.
+
+### Verifying it is disabled
+
+When telemetry is enabled, the API logs this line at startup:
+
+```
+Anonymous usage telemetry is enabled (aggregate counts only, no user data). See docs/dev-guides/telemetry.mdx - disable with TELEMETRY_ENABLED=false.
+```
+
+If the line is absent, telemetry is off. You can also confirm that the Celery beat schedule has no
+`send-telemetry-ping` entry.
+
+### Blocking at the network level
+
+If you want a guarantee that does not depend on configuration, block outbound traffic to
+`telemetry.mntm.dev` in your firewall. Telemetry is best-effort, so a blocked request is logged at
+`WARNING` and never affects the instance.
 
 ## Failure behavior
 
-Telemetry is best-effort and can never affect your instance: delivery uses a 5-second timeout, failures
-are logged at `WARNING` and swallowed, and the ping is simply retried on the next hourly due-check.
+Telemetry can never affect your instance: delivery uses a 5-second timeout, failures are logged at
+`WARNING` and swallowed, and the ping is simply retried on the next hourly due-check.
