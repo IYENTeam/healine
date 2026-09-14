@@ -126,7 +126,10 @@ class TestSendPing:
         state.last_sent_at = datetime.now(timezone.utc) - timedelta(hours=1)
         db.flush()
 
-        with patch("app.services.telemetry_service.httpx.post") as mock_post:
+        with (
+            patch.object(settings, "telemetry_send_interval_seconds", 86400.0),
+            patch("app.services.telemetry_service.httpx.post") as mock_post,
+        ):
             result = telemetry_service.send_ping(db, event="daily")
 
         assert result == "not_due"
@@ -137,7 +140,10 @@ class TestSendPing:
         state.last_sent_at = datetime.now(timezone.utc) - timedelta(hours=1)
         db.flush()
 
-        with patch("app.services.telemetry_service.httpx.post") as mock_post:
+        with (
+            patch.object(settings, "telemetry_startup_debounce_seconds", 43200.0),
+            patch("app.services.telemetry_service.httpx.post") as mock_post,
+        ):
             result = telemetry_service.send_ping(db, event="startup")
 
         assert result == "not_due"
