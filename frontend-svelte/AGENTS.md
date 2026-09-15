@@ -1079,9 +1079,9 @@ nothing granted and nothing told apart.
 ## Data Summary
 
 Its own route (`/users/[id]/data`) because both aggregates it needs scan this
-user's slice of `data_point_series`. It fetches **two** timelines — grouped by
-`series_type` and by `provider` — so switching what the rows mean costs no round
-trip.
+user's slice of `data_point_series`. It fetches **three** timelines — grouped by
+`series_type`, by `provider` and by `workout_type` — so each dimension has its
+own section rather than sharing one toggled card.
 
 ### Two heatmaps, no toggle, no ranking repeating them
 
@@ -1093,7 +1093,8 @@ There is **no rows toggle**: it made one card show either dimension while a
 ranking below listed the very same series types again. Each dimension has its
 own section and appears once.
 
-`Workout types` is still a ranking, because it has to be — see below.
+`Workout types` is a heatmap too, on the `workout_type` grouping. It was a
+ranking for as long as the timeline endpoint knew nothing about event records.
 
 Three things it took a rewrite to get right:
 
@@ -1108,25 +1109,29 @@ Three things it took a rewrite to get right:
   other into the palest step. Step 0 is the border colour, not the surface, so an
   empty bucket reads as a bucket with nothing in it rather than a hole.
 
-### Only the period touches the server
+### Both filters navigate, and that is a reversal
 
-The period changes what the API aggregates, so it navigates — with
-`noScroll`/`data-sveltekit-noscroll`, because throwing the reader back to the
-header on a date change is not a page load anyone asked for.
+The period has always navigated, because it changes what the API aggregates.
+The provider used to be **client state** — `shallowParam` over `pushState` — on
+the reasoning that everything it touched was already on the page.
 
-**Everything else is a view over data already here.** Both timeline groupings
-are fetched up front, and the provider filter is computed from `by_provider`, so
-the row toggle and the provider filter use
-[`shallowParam`](src/lib/utils/shallow.svelte.ts) — the extracted form of the
-`pushState` pattern, now used three times. An e2e test asserts no `__data.json`
-request follows the toggle, which is what "no round trip" actually means.
+That reasoning died when the timeline gained its `provider` parameter. The
+heatmaps can only be narrowed by the server, so the choice has to reach a load,
+and both filters are now plain links. Both carry
+`noScroll`/`data-sveltekit-noscroll`: throwing the reader back to the header on
+a filter change is not a page load anyone asked for, and that — not the absence
+of a fetch — was always the thing worth protecting.
+
+The e2e test that asserted no `__data.json` request follows the change is gone
+with it. Keeping it would have been keeping a guarantee we deliberately
+withdrew.
 
 Both are [`Segmented`](src/lib/components/ui/Segmented.svelte) controls — one
 recessed track with a raised active segment — not rows of loose chips, which is
-what they were and what made them read as noise. It takes links (the period,
-which navigates) or buttons (the provider, which does not), so the heatmap's row
-toggle uses the same component. The two date inputs share one bordered box with
-no borders of their own, so the pair reads as a single field.
+what they were and what made them read as noise. It still takes buttons as well
+as links; `RecentSyncsCard` is the remaining `shallowParam` caller, where the
+filter really is a view over data already fetched. The two date inputs share one
+bordered box with no borders of their own, so the pair reads as a single field.
 
 Both filters sit **outside the cards** in
 [`SummaryFilters`](src/lib/components/summary/SummaryFilters.svelte): they govern
@@ -1154,17 +1159,30 @@ whatever the period holds — and a connected provider with nothing this month i
 exactly what an admin wants to be able to select. With one connection there is
 nothing to choose, so the group is not rendered at all.
 
-### What the workout heatmap needs from the backend
+### Per-type counts come from the timelines, never from the summary
 
-There is no workout-type timeline to draw. `TimelineGroupBy` is
-`provider | series_type`, and `TimelineMetric` has one member, `data_points` —
-its own docstring says "Event records (workouts, sleep) join as their own
-metric", which is a plan, not an endpoint. `event_record` has the same shape
-(`data_source_id` to join, `start_datetime` to bucket on), so the ask is a
-`workout_type` grouping and an events metric. Until then `Workout types` is a
-ranking and says why.
+`UserDataSummaryResponse` carries `workout_type_counts`, but only across every
+provider — `ProviderDataCount` has a `workout_count` total and no per-type
+breakdown. So a narrowed `Workout types` could never be answered from the
+summary, whatever the period.
 
-### Every panel is narrowed or labelled — never silently neither
+`series_type_counts` _could_ be, through `by_provider[…].series_counts`, and for
+a while was — which left the page narrowing per-type counts two different ways
+depending on the card. Both now read their own **timeline**: the heatmap over a
+range, `totalsFromTimeline()` for a single day. One mechanism, and the one that
+generalises to the tabs still to come.
+
+So the summary is read for the totals row and the share bar only.
+`series_type_counts` and `workout_type_counts` stay in the type because the API
+returns them; nothing here touches either.
+
+[`TimelinePanel`](src/lib/components/summary/TimelinePanel.svelte) owns that
+choice — plot it, or rank it when the period holds one bucket — so `Series types`
+and `Workout types` are one line each and cannot drift apart. `narrowToProvider`
+returns a `Totals` of the three figures rather than a whole `DataSummary`, which
+is all that was ever read back out of it.
+
+### Every panel narrows
 
 With a provider chosen:
 
@@ -1172,34 +1190,47 @@ With a provider chosen:
 | ----------------- | ----------------------------------------------------------------------------------- |
 | Totals            | narrowed from `by_provider`                                                         |
 | Share bar         | keeps both segments, **dims the others** — it still answers "how big is this slice" |
-| Provider timeline | filtered to that one row                                                            |
-| Series types      | drops to totals from `series_counts` — the timeline takes no provider **yet**       |
-| Workout types     | unchanged, and says "Across every provider"                                         |
+| Provider timeline | server-filtered to that one row                                                     |
+| Series types      | server-filtered, still a heatmap                                                    |
+| Workout types     | server-filtered, still a heatmap                                                    |
 
 The first version narrowed only the totals, so three panels showed every
-provider's data under a heading naming one. If a panel cannot follow the filter,
-its description has to say so.
+provider's data under a heading naming one. The second narrowed what it could
+and labelled the rest. Only now that the API takes `provider` does the honest
+answer stop needing a caveat — and the caveats came out with it, because a
+description explaining a limit that no longer exists is worse than none.
+
+The heatmap's `only` prop went the same way: it filtered a series client-side
+and became dead the moment the server did it.
+
+`Heatmap`'s own "nothing to plot" branch survives, but not its advice. A chosen
+day no longer reaches it, so the one case left is an all-time history that fits
+in a single bucket — where "pick a range" was telling the reader to widen a
+period that is already as wide as it goes.
 
 The heatmaps also state **what they count**: the timeline endpoint counts
 `data_point_series` rows only, so workouts and sleep are in the totals above and
 not in any band.
 
-### The one backend change worth asking for first
+### An unknown provider is dropped, not forwarded
 
-Series types **should** stay a heatmap when a provider is chosen. It cannot,
-because the timeline endpoint has no `provider` parameter — and that gap is far
-smaller than it sounds. `get_user_timeline_counts`
-([data_point_series_repository.py:524](../backend/app/repositories/data_point_series_repository.py#L524))
-already joins `DataSource` and filters `DataSource.user_id`; a provider filter is
-one more `filter(DataSource.provider == provider)` on the same query — no new
-join, no new index, no change to the response shape.
+The API takes a `ProviderName` enum, so `?provider=nonsense` would 422 all three
+timelines and take the page down with them. The loader fetches connections
+first and keeps the parameter only if this user actually has that connection —
+which is also the list the filter offers, so the guard and the control cannot
+disagree. A hand-edited URL falls back to `All`.
 
-`/users/{id}/timeseries` is not an alternative: raw samples, cursor paged at 100
-a time, and no provider filter either.
+This costs one sequential step before the expensive queries fan out.
+`fetchProviders` is Redis-cached and `fetchConnections` is a small indexed read,
+so the wave that matters is still fully parallel.
 
-When that parameter lands, the fallback comes out and `Series types` plots the
-chosen provider directly. The workout-type metric is the larger ask; this one is
-a line.
+### `end_date` is sent as a timestamp on purpose
+
+The backend's `parse_query_end_datetime` widens a **date-only** `end_date` to the
+next midnight, so `end_date=2026-07-13` covers all of 13 July. `windowParams`
+sends a full ISO timestamp from `periodWindow`'s already half-open `[from, to)`,
+which that rule leaves alone. Switching to bare dates here would hand the same
+day to both and push every window one day long.
 
 ### Month labels thin themselves out
 

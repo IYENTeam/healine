@@ -9,8 +9,7 @@
 		hrefFor,
 		providers,
 		labelFor,
-		selected,
-		onpick
+		selected
 	}: {
 		period: Period;
 		hrefFor: (changes: Record<string, string | null>) => string;
@@ -18,12 +17,18 @@
 		providers: string[];
 		labelFor: (provider: string) => string;
 		selected: string;
-		onpick: (provider: string) => void;
 	} = $props();
 
+	// Links, not buttons: the server does the narrowing, so the choice has to
+	// reach a load. `Segmented` marks them noscroll, which is what kept the
+	// reader in place when this was client-side state.
 	const items = $derived([
-		{ value: '', label: 'All' },
-		...providers.map((provider) => ({ value: provider, label: labelFor(provider) }))
+		{ value: '', label: 'All', href: hrefFor({ provider: null }) },
+		...providers.map((provider) => ({
+			value: provider,
+			label: labelFor(provider),
+			href: hrefFor({ provider })
+		}))
 	]);
 </script>
 
@@ -39,7 +44,7 @@
 	{#if providers.length > 1}
 		<div class="flex flex-col gap-1.5">
 			<span class={CAPTION}>Provider</span>
-			<Segmented label="Provider" {items} {selected} onselect={onpick} />
+			<Segmented label="Provider" {items} {selected} />
 		</div>
 	{/if}
 </div>

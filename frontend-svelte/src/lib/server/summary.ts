@@ -1,5 +1,5 @@
 import { apiGet } from './api';
-import type { DataSummary, DataTimeline } from '$lib/summary/types';
+import type { DataSummary, DataTimeline, TimelineGroupBy } from '$lib/summary/types';
 import { periodBucket, periodWindow, type Period } from '$lib/summary/period';
 
 const stamp = (date: Date) => `${date.toISOString().slice(0, 19)}Z`;
@@ -25,12 +25,14 @@ export const fetchDataTimeline = (
 	userId: string,
 	accessToken: string,
 	period: Period,
-	groupBy: 'provider' | 'series_type'
+	groupBy: TimelineGroupBy,
+	provider = ''
 ) =>
 	apiGet<DataTimeline>(
 		`/api/v1/users/${userId}/summaries/data/timeline?${windowParams(period, {
 			bucket: periodBucket(period),
-			group_by: groupBy
+			group_by: groupBy,
+			...(provider ? { provider } : {})
 		})}`,
 		accessToken
 	);

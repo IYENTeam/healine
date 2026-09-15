@@ -3,9 +3,9 @@
 	import Dumbbell from '@lucide/svelte/icons/dumbbell';
 	import Moon from '@lucide/svelte/icons/moon';
 	import { CAPTION } from '$lib/components/ui/typography';
-	import type { DataSummary } from '$lib/summary/types';
+	import type { Totals } from '$lib/summary/narrow';
 
-	let { summary }: { summary: DataSummary } = $props();
+	let { summary }: { summary: Totals } = $props();
 
 	const totals = $derived([
 		{ icon: Database, label: 'Data points', value: summary.total_data_points },

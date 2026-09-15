@@ -271,52 +271,87 @@ export const makeDataSummary = () => ({
 	has_womens_health_data: true
 });
 
+/** Which provider delivers what, so the provider filter has something to cut. */
+const SERIES_OWNER: Record<string, string> = {
+	heart_rate: 'garmin',
+	steps: 'garmin',
+	vo2_max: 'garmin',
+	oxygen_saturation: 'oura',
+	sleep_duration: 'oura'
+};
+
+const WORKOUT_OWNER: Record<string, string> = {
+	running: 'garmin',
+	cycling: 'garmin',
+	strength_training: 'garmin',
+	swimming: 'oura'
+};
+
 /**
  * Relative to today, so the cells land inside the grid the page computes, and
  * covering the whole default window rather than a corner of it. Garmin has a
  * deliberate week-long gap: the thing the heatmap exists to show.
  */
-export const makeDataTimeline = (bucket: string, groupBy: string) => {
+export const makeDataTimeline = (bucket: string, groupBy: string, provider = '') => {
 	const weekly = bucket === 'week';
-	const stride = bucket === 'week' ? 7 : 1;
-	const count = bucket === 'week' ? 52 : 90;
+	const stride = weekly ? 7 : 1;
+	const count = weekly ? 52 : 90;
 
-	const garmin: [string, number][] = [];
-	const oura: [string, number][] = [];
-	for (let index = 0; index < count; index += 1) {
-		const offset = index * stride;
-		// A wave, so intensity varies instead of every cell landing on one shade.
-		const wave = 0.35 + 0.65 * Math.abs(Math.sin(index / 6));
-		if (index < 10 || index > 16) garmin.push([isoDay(offset, weekly), Math.round(2100 * wave)]);
-		if (index % 3 === 0) oura.push([isoDay(offset, weekly), Math.round(420 * wave)]);
-	}
+	// A wave, so intensity varies instead of every cell landing on one shade.
+	const wave = (index: number) => 0.35 + 0.65 * Math.abs(Math.sin(index / 6));
+	const owned = (owner: Record<string, string>) => (key: string) =>
+		!provider || owner[key] === provider;
+
+	const series = (
+		keys: string[],
+		metric: string,
+		fill: (key: string, index: number, rank: number) => number | null
+	) =>
+		keys.map((key, rank) => {
+			const buckets: [string, number][] = [];
+			for (let index = 0; index < count; index += 1) {
+				const value = fill(key, index, rank);
+				if (value !== null) buckets.push([isoDay(index * stride, weekly), value]);
+			}
+			return { key, metric, buckets: buckets.reverse() };
+		});
 
 	if (groupBy === 'series_type') {
 		// Sleep stops arriving partway through: the pattern a per-type heatmap is
 		// for, and invisible in a per-provider one.
-		const types = ['heart_rate', 'steps', 'oxygen_saturation', 'sleep_duration', 'vo2_max'];
+		const types = Object.keys(SERIES_OWNER).filter(owned(SERIES_OWNER));
 		return {
 			bucket,
 			group_by: groupBy,
-			series: types.map((key, rank) => {
-				const buckets: [string, number][] = [];
-				for (let index = 0; index < count; index += 1) {
-					if (key === 'sleep_duration' && index < 20) continue;
-					if (key === 'vo2_max' && index % 7 !== 0) continue;
-					const wave = 0.35 + 0.65 * Math.abs(Math.sin(index / 6));
-					buckets.push([isoDay(index * stride, weekly), Math.round((2400 / (rank + 1)) * wave)]);
-				}
-				return { key, metric: 'data_points', buckets: buckets.reverse() };
+			series: series(types, 'data_points', (key, index, rank) => {
+				if (key === 'sleep_duration' && index < 20) return null;
+				if (key === 'vo2_max' && index % 7 !== 0) return null;
+				return Math.round((2400 / (rank + 1)) * wave(index));
 			})
 		};
 	}
 
+	if (groupBy === 'workout_type') {
+		const types = Object.keys(WORKOUT_OWNER).filter(owned(WORKOUT_OWNER));
+		return {
+			bucket,
+			group_by: groupBy,
+			// Workouts are counted, not sampled, so these are single digits.
+			series: series(types, 'workouts', (key, index, rank) => {
+				if ((index + rank) % (rank + 2) !== 0) return null;
+				return 1 + (index % (3 - Math.min(rank, 2)));
+			})
+		};
+	}
+
+	const providers = ['garmin', 'oura'].filter((key) => !provider || key === provider);
 	return {
 		bucket,
 		group_by: groupBy,
-		series: [
-			{ key: 'garmin', metric: 'data_points', buckets: garmin.reverse() },
-			{ key: 'oura', metric: 'data_points', buckets: oura.reverse() }
-		]
+		series: series(providers, 'data_points', (key, index) => {
+			if (key === 'garmin')
+				return index >= 10 && index <= 16 ? null : Math.round(2100 * wave(index));
+			return index % 3 === 0 ? Math.round(420 * wave(index)) : null;
+		})
 	};
 };

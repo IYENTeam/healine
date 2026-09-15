@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ALL_TIME, parsePeriod, periodBucket, periodWindow, spanDays, weekStart } from './period';
 import { narrowToProvider } from './narrow';
-import { toRows } from './timeline';
+import { toRows, totalsFromTimeline } from './timeline';
 import type { DataTimeline } from './types';
 
 const params = (query: string) => new URLSearchParams(query);
@@ -155,6 +155,26 @@ describe('toRows over the whole history', () => {
 	});
 });
 
+describe('totalsFromTimeline', () => {
+	it('sums every bucket a series carries', () => {
+		const totals = totalsFromTimeline(
+			timeline([
+				{
+					key: 'running',
+					metric: 'workouts',
+					buckets: [
+						['2026-09-01', 2],
+						['2026-09-03', 3]
+					]
+				},
+				{ key: 'cycling', metric: 'workouts', buckets: [['2026-09-02', 1]] }
+			])
+		);
+
+		expect(totals).toEqual({ running: 5, cycling: 1 });
+	});
+});
+
 describe('narrowToProvider', () => {
 	const summary = {
 		total_data_points: 100,
@@ -175,17 +195,20 @@ describe('narrowToProvider', () => {
 	};
 
 	it("takes the provider's own counts, not the page totals", () => {
-		const narrowed = narrowToProvider(summary, 'oura');
-		expect(narrowed.total_data_points).toBe(40);
-		expect(narrowed.total_workouts).toBe(2);
-		expect(narrowed.series_type_counts).toEqual({ heart_rate: 40 });
+		expect(narrowToProvider(summary, 'oura')).toEqual({
+			total_data_points: 40,
+			total_workouts: 2,
+			total_sleep_events: 3
+		});
 	});
 
 	// Absent from by_provider means it delivered nothing in this period; showing
 	// everyone's totals under its name would be a lie.
 	it('is zeroes for a provider that delivered nothing', () => {
-		const narrowed = narrowToProvider(summary, 'garmin');
-		expect(narrowed.total_data_points).toBe(0);
-		expect(narrowed.series_type_counts).toEqual({});
+		expect(narrowToProvider(summary, 'garmin')).toEqual({
+			total_data_points: 0,
+			total_workouts: 0,
+			total_sleep_events: 0
+		});
 	});
 });

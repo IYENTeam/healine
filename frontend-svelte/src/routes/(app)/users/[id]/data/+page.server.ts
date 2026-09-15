@@ -3,6 +3,7 @@ import { requireToken } from '$lib/server/guard';
 import { fetchProviders } from '$lib/server/providers';
 import { fetchDataSummary, fetchDataTimeline } from '$lib/server/summary';
 import { parsePeriod } from '$lib/summary/period';
+import type { TimelineGroupBy } from '$lib/summary/types';
 import type { PageServerLoad } from './$types';
 
 /**
@@ -16,13 +17,26 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
 
 	// Connections, not the period's own providers: a filter that vanishes as you
 	// step through days is worse than no filter.
-	const [summary, byType, byProvider, providers, connections] = await Promise.all([
-		fetchDataSummary(params.id, accessToken, period),
-		fetchDataTimeline(params.id, accessToken, period, 'series_type'),
-		fetchDataTimeline(params.id, accessToken, period, 'provider'),
+	const [providers, connections] = await Promise.all([
 		fetchProviders(accessToken),
 		fetchConnections(params.id, accessToken)
 	]);
 
-	return { period, summary, byType, byProvider, providers, connections };
+	// A provider this user has no connection to is a typo, not a filter. The API
+	// takes a ProviderName enum, so passing one through would 422 the timelines
+	// and take the whole page down with them.
+	const asked = url.searchParams.get('provider') ?? '';
+	const provider = connections.some((connection) => connection.provider === asked) ? asked : '';
+
+	const timeline = (groupBy: TimelineGroupBy) =>
+		fetchDataTimeline(params.id, accessToken, period, groupBy, provider);
+
+	const [summary, byType, byProvider, byWorkout] = await Promise.all([
+		fetchDataSummary(params.id, accessToken, period),
+		timeline('series_type'),
+		timeline('provider'),
+		timeline('workout_type')
+	]);
+
+	return { period, provider, summary, byType, byProvider, byWorkout, providers, connections };
 };

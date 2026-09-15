@@ -167,7 +167,11 @@ const server = Bun.serve({
 				case '/summaries/data/timeline': {
 					const query = new URL(request.url).searchParams;
 					return json(
-						makeDataTimeline(query.get('bucket') ?? 'day', query.get('group_by') ?? 'provider')
+						makeDataTimeline(
+							query.get('bucket') ?? 'day',
+							query.get('group_by') ?? 'provider',
+							query.get('provider') ?? ''
+						)
 					);
 				}
 				case '/sync/runs':

@@ -38,6 +38,16 @@ function span(series: TimelineSeries[], bucket: 'day' | 'week'): { from: Date; t
 	return { from: new Date(`${dates[0]}T00:00:00Z`), to: step(last, bucket) };
 }
 
+/** Per-key totals, for a panel whose period holds too few buckets to plot. */
+export function totalsFromTimeline(timeline: DataTimeline): Record<string, number> {
+	return Object.fromEntries(
+		timeline.series.map((entry) => [
+			entry.key,
+			entry.buckets.reduce((sum, [, count]) => sum + count, 0)
+		])
+	);
+}
+
 export function toRows(
 	timeline: DataTimeline,
 	window: { from: Date; to: Date } | null

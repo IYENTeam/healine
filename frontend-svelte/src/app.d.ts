@@ -9,7 +9,6 @@ declare global {
 		/** Filters that are URL-visible but must not re-run a load. */
 		interface PageState {
 			syncProvider?: string;
-			summaryProvider?: string;
 		}
 	}
 }

@@ -13,32 +13,26 @@
 		timeline,
 		period,
 		labelFor,
-		only = '',
 		limit = 12
 	}: {
 		timeline: DataTimeline;
 		period: Period;
 		labelFor: (key: string) => string;
-		/** Keeps a single series, for when a filter has narrowed the page. */
-		only?: string;
 		limit?: number;
 	} = $props();
 
-	const shown = $derived(
-		only ? { ...timeline, series: timeline.series.filter((entry) => entry.key === only) } : timeline
-	);
-
 	let expanded = $state(false);
 
-	const grid = $derived(toRows(shown, periodWindow(period)));
+	const grid = $derived(toRows(timeline, periodWindow(period)));
 	const rows = $derived(expanded ? grid.rows : grid.rows.slice(0, limit));
-	const unit = $derived(shown.bucket === 'week' ? 'week of ' : '');
+	const unit = $derived(timeline.bucket === 'week' ? 'week of ' : '');
 </script>
 
 {#if grid.rows.length === 0}
 	<p class={NOTE}>Nothing arrived in this period.</p>
 {:else if grid.dates.length < 2}
-	<p class={NOTE}>A single day has nothing to plot over time — pick a range.</p>
+	<!-- Not a period the reader can widen: their whole history is this narrow. -->
+	<p class={NOTE}>Everything this user has lands in one {timeline.bucket}.</p>
 {:else}
 	<div class="flex flex-col gap-3">
 		<div class="flex flex-col gap-1.5">

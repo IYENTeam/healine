@@ -39,30 +39,26 @@ test('gives providers and data types a section each, without repeating either', 
 	await expect(types.getByText('Garmin')).toHaveCount(0);
 });
 
-test('narrowing a provider costs no round trip', async ({ page }) => {
+test('plots workout types over time, not just their totals', async ({ page }) => {
 	await page.goto(QUARTER);
 
-	// A re-run load fetches __data.json, and that is what used to scroll the
-	// page back to its header. Narrowing shrinks the panels, so the scroll
-	// position itself cannot be asserted — the absence of the load can.
-	const reloads: string[] = [];
-	page.on('request', (request) => {
-		if (request.url().includes('__data.json')) reloads.push(request.url());
-	});
+	const workouts = page.getByRole('region').filter({ hasText: 'Workout types' });
+	await expect(workouts.getByText('Running')).toBeVisible();
+	await expect(workouts.getByText('Strength training')).toBeVisible();
 
-	await page.getByRole('button', { name: 'Oura', exact: true }).click();
-
-	await expect(page).toHaveURL(`${QUARTER}&provider=oura`);
-	await expect(page.getByText('7420')).toBeVisible();
-	expect(reloads).toEqual([]);
+	// Counted events, not sampled points: the cells carry single digits.
+	const cells = workouts.locator('span[title*="2026-"]');
+	expect(await cells.count()).toBeGreaterThan(100);
+	await expect(cells.first()).toHaveAttribute('title', /2026-\d\d-\d\d · \d/);
 });
 
-test('narrows every panel it can, and labels the ones it cannot', async ({ page }) => {
+test('narrows every panel, including both heatmaps', async ({ page }) => {
 	await page.goto(QUARTER);
-	await page.getByRole('button', { name: 'Oura', exact: true }).click();
+	await page.getByRole('link', { name: 'Oura', exact: true }).click();
 
-	await expect(page.getByRole('button', { name: 'Oura', exact: true })).toHaveAttribute(
-		'aria-pressed',
+	await expect(page).toHaveURL(`${QUARTER}&provider=oura`);
+	await expect(page.getByRole('link', { name: 'Oura', exact: true })).toHaveAttribute(
+		'aria-current',
 		'true'
 	);
 
@@ -72,33 +68,42 @@ test('narrows every panel it can, and labels the ones it cannot', async ({ page 
 	await expect(collected.getByTitle('Oura', { exact: true })).toBeVisible();
 	await expect(collected.getByTitle('Garmin', { exact: true })).toHaveCount(0);
 
-	// Series types drop to totals rather than plotting every provider under a
-	// heading that names one.
+	// Series types still plots over time rather than dropping to totals, and
+	// carries only what Oura delivers.
 	const types = page.getByRole('region').filter({ hasText: 'Series types' });
-	await expect(types.getByText('What Oura delivers')).toBeVisible();
-	await expect(types.locator('span[title*="2026-"]')).toHaveCount(0);
+	await expect(types.locator('span[title*="2026-"]').first()).toBeVisible();
 	await expect(types.getByText('Oxygen saturation')).toBeVisible();
 	await expect(types.getByText('Steps')).toHaveCount(0);
 
-	// And the one that cannot be narrowed at all says so.
+	// And the workout heatmap narrows with them, which is what the summary's
+	// per-provider counts could never answer.
 	const workouts = page.getByRole('region').filter({ hasText: 'Workout types' });
-	await expect(workouts.getByText('Across every provider')).toBeVisible();
+	await expect(workouts.getByText('Swimming')).toBeVisible();
+	await expect(workouts.getByText('Running')).toHaveCount(0);
 });
 
 test('keeps the chosen provider when the period changes', async ({ page }) => {
 	await page.goto(QUARTER);
-	await page.getByRole('button', { name: 'Oura', exact: true }).click();
+	await page.getByRole('link', { name: 'Oura', exact: true }).click();
 
-	// The provider lives in page.state, which page.url does not carry, so a
-	// period link has to put it back or the filter clears itself.
 	await page.getByRole('link', { name: 'All time' }).click();
 
 	await expect(page).toHaveURL(`${DATA}?provider=oura`);
-	await expect(page.getByRole('button', { name: 'Oura', exact: true })).toHaveAttribute(
-		'aria-pressed',
+	await expect(page.getByRole('link', { name: 'Oura', exact: true })).toHaveAttribute(
+		'aria-current',
 		'true'
 	);
-	await expect(page.getByText('From Oura')).toBeVisible();
+});
+
+test('drops a provider the user is not connected to rather than failing', async ({ page }) => {
+	// The API takes an enum, so an invented slug would 422 every timeline.
+	await page.goto(`${QUARTER}&provider=nonsense`);
+
+	await expect(page.getByText('Everything stored for this user')).toBeVisible();
+	await expect(page.getByRole('link', { name: 'All', exact: true })).toHaveAttribute(
+		'aria-current',
+		'true'
+	);
 });
 
 test('offers all time, a single day, and a range', async ({ page }) => {
@@ -134,6 +139,8 @@ test('falls back to bars for a single day, where a timeline is one column', asyn
 	// No colour ramp to read on one bucket.
 	await expect(types.getByText('Less')).toHaveCount(0);
 
-	await types.getByRole('button', { name: 'Show all 9' }).click();
-	await expect(types.getByText('UV exposure')).toBeVisible();
+	// Workout types falls back the same way, through the same component.
+	const workouts = page.getByRole('region').filter({ hasText: 'Workout types' });
+	await expect(workouts.getByText('Workouts recorded that day')).toBeVisible();
+	await expect(workouts.getByText('Running')).toBeVisible();
 });

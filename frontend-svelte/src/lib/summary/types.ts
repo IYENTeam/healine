@@ -17,6 +17,8 @@ export type DataSummary = {
 	has_womens_health_data: boolean;
 };
 
+export type TimelineGroupBy = 'provider' | 'series_type' | 'workout_type';
+
 /** Mirrors `UserDataTimelineResponse`. Sparse: empty buckets are omitted. */
 export type TimelineSeries = {
 	key: string;
@@ -27,6 +29,6 @@ export type TimelineSeries = {
 
 export type DataTimeline = {
 	bucket: 'day' | 'week';
-	group_by: 'provider' | 'series_type';
+	group_by: TimelineGroupBy;
 	series: TimelineSeries[];
 };
