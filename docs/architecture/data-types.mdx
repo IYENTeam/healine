@@ -176,7 +176,7 @@ The `types` parameter in the timeseries endpoint accepts the following values:
 
 ## Workout Types
 
-Common workout types returned by the events/workouts endpoint. This is not an exhaustive list - the API supports 80+ workout types:
+Common workout types returned by the events/workouts endpoint. This is not an exhaustive list - the API supports 100+ workout types:
 
 | Type | Description |
 |------|-------------|
@@ -221,6 +221,21 @@ Common workout types returned by the events/workouts endpoint. This is not an ex
   Workout types are normalized from provider-specific values. The original provider type is preserved in the raw data.
 </Note>
 
+Filter the list by exact type with `?type=running`. The older `record_type` parameter matches a
+substring, so `record_type=running` also returns `trail_running`; it is kept for backwards
+compatibility.
+
+To offer only the types a user actually has, read them from
+`GET /api/v1/users/{user_id}/events/workouts/types`, which returns a sorted list such as
+`["cycling", "running", "trail_running"]`.
+
+Heart-rate zones, power zones and lap segments are omitted by default because they multiply the
+payload size. Request them explicitly with `?include=zones` and `?include=segments` (repeat the
+parameter to ask for both).
+
+Sleep sessions follow the same rule: `sleep_stage_intervals` is omitted unless you pass
+`?include=stages` on `/events/sleep`.
+
 ---
 
 ## Resolution Options
@@ -234,6 +249,11 @@ The `resolution` parameter for timeseries aggregation:
 | `5min` | Aggregated to 5-minute intervals |
 | `15min` | Aggregated to 15-minute intervals |
 | `1hour` | Aggregated to 1-hour intervals |
+
+Buckets are grouped per data source, so two devices reporting the same minute stay two points.
+Rate metrics (heart rate, power) are averaged and counters (steps, energy) are summed. A
+provider's own daily total is skipped, since it is not a point in an intraday series — use
+`/summaries` for per-day figures.
 
 ---
 
