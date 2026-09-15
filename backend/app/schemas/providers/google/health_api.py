@@ -9,8 +9,24 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from decimal import Decimal
 from enum import Enum
+from typing import Any
+
+from pydantic import BaseModel, Field
 
 from app.schemas.enums import DataGranularity, SeriesType
+
+
+class DataPointsPage(BaseModel):
+    """One page of a dataPoints, dataPoints:reconcile or dataPoints:rollUp response.
+
+    All three share the envelope and differ only in which list they fill; every field is
+    optional because Google omits empty ones (an exhausted window returns ``{}``, and a
+    page can carry a token with no points).
+    """
+
+    data_points: list[dict[str, Any]] = Field(default_factory=list, alias="dataPoints")
+    rollup_data_points: list[dict[str, Any]] = Field(default_factory=list, alias="rollupDataPoints")
+    next_page_token: str | None = Field(None, alias="nextPageToken")
 
 
 class TimeShape(Enum):

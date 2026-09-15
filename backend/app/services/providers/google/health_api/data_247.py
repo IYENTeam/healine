@@ -26,6 +26,7 @@ from app.repositories.data_point_series_repository import WriteCounts
 from app.repositories.provider_settings_repository import ProviderSettingsRepository
 from app.repositories.user_connection_repository import UserConnectionRepository
 from app.schemas.enums import GRANULARITY_WINDOW_SECONDS, DataGranularity, SeriesType
+from app.schemas.enums.aggregation_method import daily_total_flag
 from app.schemas.model_crud.activities import TimeSeriesSampleCreate
 from app.schemas.providers.google import (
     DailyRollupSpec,
@@ -41,6 +42,7 @@ from app.services.providers.google.health_api.helpers import (
     civil_interval,
     extract_source,
     parse_date,
+    parse_page,
     parse_rfc3339,
     physical_interval,
     read_number,
@@ -97,7 +99,9 @@ class GoogleHealth247Data(Base247DataTemplate):
                     else:
                         samples = self._rollup_samples(db, user_id, metric, start_time, end_time, granularity)
                     counts = timeseries_service.bulk_create_samples(db, samples) if samples else None
+                db.commit()
             except Exception as e:
+                db.rollback()
                 self._log_metric_failure(metric.data_type, user_id, e)
                 failures[metric.data_type] = str(e)
                 continue
@@ -110,7 +114,9 @@ class GoogleHealth247Data(Base247DataTemplate):
                 with db.begin_nested():
                     samples = self._derived_daily_samples(db, user_id, derived, start_time, end_time)
                     counts = timeseries_service.bulk_create_samples(db, samples) if samples else None
+                db.commit()
             except Exception as e:
+                db.rollback()
                 self._log_metric_failure(derived.name, user_id, e)
                 failures[derived.name] = str(e)
                 continue
@@ -119,15 +125,15 @@ class GoogleHealth247Data(Base247DataTemplate):
                 results[derived.name] = counts
 
         try:
-            sleep_count = self.sleep.load_and_save(db, user_id, start_time, end_time)
+            with db.begin_nested():
+                sleep_count = self.sleep.load_and_save(db, user_id, start_time, end_time)
+            db.commit()
             succeeded += 1
         except Exception as e:
+            db.rollback()
             self._log_metric_failure("sleep", user_id, e)
             failures["sleep"] = str(e)
             sleep_count = 0
-
-        if results or sleep_count:
-            db.commit()
 
         # Every attempted data type failed (e.g. ACCOUNT_NOT_LINKED) — surface it so the sync
         # is marked FAILED rather than an empty success. A partial/empty run returns normally.
@@ -220,8 +226,11 @@ class GoogleHealth247Data(Base247DataTemplate):
                     continue
                 for series_type, field, subfield, scale in self._bindings(metric.series_type, spec):
                     value = read_number(value_obj, field, subfield, scale)
-                    if value is not None:
-                        samples.append(self._sample(user_id, recorded_at, value, series_type, is_daily_total))
+                    # Google sends 0 for a field the device does not measure (SDNN on Pixel Watch,
+                    # #1586); for the counters a 0 adds nothing to a sum. Neither is worth a row.
+                    if value is None or value == 0:
+                        continue
+                    samples.append(self._sample(user_id, recorded_at, value, series_type, is_daily_total))
         return samples
 
     def _fetch_rollup_pages(
@@ -258,10 +267,9 @@ class GoogleHealth247Data(Base247DataTemplate):
                 user_id=str(user_id),
                 trace_id=endpoint,
             )
-            if not isinstance(response, dict):
-                break
-            points.extend(response.get("rollupDataPoints", []))
-            page_token = response.get("nextPageToken")
+            page = parse_page(response, endpoint)
+            points.extend(page.rollup_data_points)
+            page_token = page.next_page_token
             if not page_token:
                 break
         return points
@@ -375,18 +383,19 @@ class GoogleHealth247Data(Base247DataTemplate):
             if not isinstance(value_obj, dict):
                 continue
             recorded_at, zone_offset = self._point_time(value_obj, spec.time)
-            if recorded_at is None or not (start_time <= recorded_at < end_time):
+            if recorded_at is None or not self._in_window(spec.time, recorded_at, start_time, end_time):
                 continue
             # Only list points carry a dataSource; reconciled points are already merged.
             device_model = None if reconcile else extract_source(point.get("dataSource"))[1]
             for series_type, field, subfield, scale in self._bindings(metric.series_type, spec):
                 value = read_number(value_obj, field, subfield, scale)
-                if value is not None:
-                    samples.append(
-                        self._sample(
-                            user_id, recorded_at, value, series_type, spec.is_daily_total, zone_offset, device_model
-                        )
+                if value is None or value == 0:
+                    continue
+                samples.append(
+                    self._sample(
+                        user_id, recorded_at, value, series_type, spec.is_daily_total, zone_offset, device_model
                     )
+                )
         return samples
 
     @staticmethod
@@ -414,6 +423,17 @@ class GoogleHealth247Data(Base247DataTemplate):
                 return parse_date(point.get("date")), None
 
     @staticmethod
+    def _in_window(shape: TimeShape, recorded_at: datetime, start_time: datetime, end_time: datetime) -> bool:
+        """Whether a point belongs to this sync window, matching :meth:`_time_filter`.
+
+        Daily points are stamped midnight, so an intraday window would never contain one;
+        they are compared by date instead, reaching back a day for a total published late.
+        """
+        if shape is TimeShape.DATE:
+            return (start_time.date() - timedelta(days=1)) <= recorded_at.date() <= end_time.date()
+        return start_time <= recorded_at < end_time
+
+    @staticmethod
     def _time_filter(
         data_type: str, shape: TimeShape, start_time: datetime, end_time: datetime, session_interval: bool = False
     ) -> str:
@@ -426,8 +446,9 @@ class GoogleHealth247Data(Base247DataTemplate):
                 low = (start_time.date() - timedelta(days=1)).isoformat()
                 high = (end_time.date() + timedelta(days=1)).isoformat()
             case TimeShape.DATE:
+                # A daily total is published once its day closes.
                 member = f"{field}.date"
-                low = start_time.date().isoformat()
+                low = (start_time.date() - timedelta(days=1)).isoformat()
                 high = (end_time.date() + timedelta(days=1)).isoformat()
             case TimeShape.INTERVAL | TimeShape.SAMPLE:
                 suffix = "interval.start_time" if shape is TimeShape.INTERVAL else "sample_time.physical_time"
@@ -469,10 +490,9 @@ class GoogleHealth247Data(Base247DataTemplate):
                 user_id=str(user_id),
                 trace_id=endpoint,
             )
-            if not isinstance(response, dict):
-                break
-            points.extend(response.get("dataPoints", []))
-            page_token = response.get("nextPageToken")
+            page = parse_page(response, endpoint)
+            points.extend(page.data_points)
+            page_token = page.next_page_token
             if not page_token:
                 break
         return points
@@ -497,7 +517,9 @@ class GoogleHealth247Data(Base247DataTemplate):
             zone_offset=zone_offset,
             value=value,
             series_type=series_type,
-            is_daily_total=is_daily_total,
+            # Only SUM series carry the daily-vs-intraday distinction; for AVG/MAX it stays None,
+            # or bucketed /timeseries reads would drop the daily rows as "totals" (see daily_total_flag).
+            is_daily_total=daily_total_flag(series_type, is_daily_total),
             external_id=(
                 f"{series_type.value}:{recorded_at.isoformat()}" if series_type is SeriesType.energy else None
             ),

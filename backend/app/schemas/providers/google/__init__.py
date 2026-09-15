@@ -2,6 +2,7 @@
 
 from .health_api import (
     DailyRollupSpec,
+    DataPointsPage,
     DataTypeMetric,
     DerivedDailyMetric,
     ListSpec,
@@ -18,6 +19,7 @@ from .webhooks import (
 
 __all__ = [
     "DailyRollupSpec",
+    "DataPointsPage",
     "DataTypeMetric",
     "DerivedDailyMetric",
     "GooglePhysicalTimeInterval",
