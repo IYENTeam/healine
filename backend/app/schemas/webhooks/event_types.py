@@ -132,6 +132,8 @@ class WebhookEventType(StrEnum):
 
     # Steps & calories
     SERIES_STEPS = "series.steps.created"
+    # The series was renamed to active_energy; this name stays because subscribers filter
+    # on it, and renaming it would silently stop delivering to existing subscriptions.
     SERIES_ENERGY = "series.energy.created"
     SERIES_BASAL_ENERGY = "series.basal_energy.created"
 

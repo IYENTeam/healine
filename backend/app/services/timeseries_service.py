@@ -17,6 +17,7 @@ from app.schemas.enums import (
     SeriesType,
     get_series_type_from_id,
     get_series_type_unit,
+    retired_series_type_name,
 )
 from app.schemas.model_crud.activities import (
     HeartRateSampleCreate,
@@ -159,11 +160,14 @@ class TimeSeriesService(
                 sorted_samples = sorted(group_samples, key=lambda s: s.recorded_at)
                 series_type_enum = SeriesType(series_type_value)
                 unit = get_series_type_unit(series_type_enum)
+                # TEMPORARY until 1.0: subscribers cannot ask for a vocabulary the way an API
+                # caller can, so the payload keeps the retired name. Drop with the alias.
+                wire_type = retired_series_type_name(series_type_value)
                 webhook_samples = [
                     {
                         "timestamp": s.recorded_at.isoformat(),
                         "zone_offset": s.zone_offset,
-                        "type": series_type_value,
+                        "type": wire_type,
                         "value": float(s.value),
                         "unit": unit,
                         "source": {"provider": provider, "device": s.device_model},
@@ -174,7 +178,7 @@ class TimeSeriesService(
                 on_timeseries_batch_saved(
                     user_id=user_id,
                     provider=provider,
-                    series_type=series_type_value,
+                    series_type=wire_type,
                     sample_count=len(sorted_samples),
                     start_time=sorted_samples[0].recorded_at.isoformat(),
                     end_time=sorted_samples[-1].recorded_at.isoformat(),

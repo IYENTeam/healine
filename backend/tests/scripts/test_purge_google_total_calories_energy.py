@@ -24,7 +24,7 @@ from app.schemas.enums.provider import ProviderName
 from app.schemas.enums.series_types import get_series_type_id
 from tests.factories import DataPointSeriesFactory, DataSourceFactory
 
-ENERGY_ID = get_series_type_id(SeriesType.energy)
+ENERGY_ID = get_series_type_id(SeriesType.active_energy)
 BASAL_ID = get_series_type_id(SeriesType.basal_energy)
 T0 = datetime(2026, 1, 1, 0, 0, tzinfo=timezone.utc)
 

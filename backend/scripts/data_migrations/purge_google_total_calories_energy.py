@@ -52,7 +52,7 @@ from app.database import SessionLocal
 
 PROVIDER = "google"
 SOURCE = "google_health_api"
-SERIES_CODE = "energy"
+SERIES_CODE = "active_energy"  # renamed from "energy"; this looks up series_type_definition.code
 DEFAULT_BATCH = 50_000
 
 _SOURCE_IDS = text("SELECT id FROM data_source WHERE provider = :provider AND source = :source")
