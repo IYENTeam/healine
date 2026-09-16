@@ -102,29 +102,30 @@ class GoogleHealth247Data(Base247DataTemplate):
         succeeded = 0
 
         # These types can only be read at native resolution now, so an aggregating granularity
-        # cannot be honoured — skip them and fail below rather than quietly storing raw rows
-        # against the setting. Derived dailies and sleep do not aggregate, so they still run.
-        needs_rollup = granularity is not DataGranularity.RAW
+        # cannot be honoured — skip them rather than quietly storing raw rows against the
+        # setting. The raise waits until the work that does not aggregate has had its turn.
+        granularity_supported = granularity is DataGranularity.RAW
 
-        for metric in () if needs_rollup else METRICS:
-            # Confine each metric (fetch + write) to a savepoint so a failed write rolls
-            # back only that metric and leaves the transaction usable for the rest.
-            try:
-                with db.begin_nested():
-                    if metric.use_list(granularity):
-                        samples = self._native_samples(db, user_id, metric, start_time, end_time)
-                    else:
-                        samples = self._rollup_samples(db, user_id, metric, start_time, end_time, granularity)
-                    counts = timeseries_service.bulk_create_samples(db, samples) if samples else None
-                db.commit()
-            except Exception as e:
-                db.rollback()
-                self._log_metric_failure(metric.data_type, user_id, e)
-                failures[metric.data_type] = str(e)
-                continue
-            succeeded += 1
-            if counts is not None:
-                results[metric.data_type] = counts
+        if granularity_supported:
+            for metric in METRICS:
+                # Confine each metric (fetch + write) to a savepoint so a failed write rolls
+                # back only that metric and leaves the transaction usable for the rest.
+                try:
+                    with db.begin_nested():
+                        if metric.use_list(granularity):
+                            samples = self._native_samples(db, user_id, metric, start_time, end_time)
+                        else:
+                            samples = self._rollup_samples(db, user_id, metric, start_time, end_time, granularity)
+                        counts = timeseries_service.bulk_create_samples(db, samples) if samples else None
+                    db.commit()
+                except Exception as e:
+                    db.rollback()
+                    self._log_metric_failure(metric.data_type, user_id, e)
+                    failures[metric.data_type] = str(e)
+                    continue
+                succeeded += 1
+                if counts is not None:
+                    results[metric.data_type] = counts
 
         for derived in DERIVED_DAILY_METRICS:
             try:
@@ -152,7 +153,7 @@ class GoogleHealth247Data(Base247DataTemplate):
             failures["sleep"] = str(e)
             sleep_count = 0
 
-        if needs_rollup:
+        if not granularity_supported:
             raise UnsupportedGranularityError(granularity)
         # Every attempted data type failed (e.g. ACCOUNT_NOT_LINKED) — surface it so the sync
         # is marked FAILED rather than an empty success. A partial/empty run returns normally.

@@ -286,8 +286,6 @@ class GoogleWebhookHandler(BaseWebhookHandler):
         try:
             return int(self.data_247.sync_data_type(db, user_id, data_type, start, end) or 0)
         except UnsupportedGranularityError as e:
-            # Reported, not re-raised: Google retries a 5xx, and no retry can fix a setting
-            # on our side. The scheduled pull reports it as a failed sync as well.
             log_and_capture_error(
                 e,
                 logger,
