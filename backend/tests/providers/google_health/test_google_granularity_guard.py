@@ -15,6 +15,7 @@ from app.services.providers.google_health.data_247 import (
     GoogleHealth247Data,
     UnsupportedGranularityError,
 )
+from app.services.providers.google_health.webhook_handler import GoogleWebhookHandler
 
 USER_ID = uuid4()
 END = datetime(2026, 9, 10, tzinfo=timezone.utc)
@@ -73,14 +74,24 @@ class TestPullSync:
 
 class TestWebhookSync:
     @pytest.mark.parametrize("granularity", [DataGranularity.HOURLY, DataGranularity.DAILY])
-    def test_a_notification_is_refused_without_raising(
-        self, data_247: GoogleHealth247Data, granularity: DataGranularity
-    ) -> None:
+    def test_a_notification_fetches_nothing(self, data_247: GoogleHealth247Data, granularity: DataGranularity) -> None:
         with (
             patch("app.services.providers.google_health.data_247.make_authenticated_request") as request,
             patch.object(data_247.settings_repo, "get_data_granularity", return_value=granularity),
+            pytest.raises(UnsupportedGranularityError, match=granularity.value),
         ):
-            result = data_247.sync_data_type(MagicMock(), USER_ID, "steps", START, END)
+            data_247.sync_data_type(MagicMock(), USER_ID, "steps", START, END)
 
-        assert result is None
         request.assert_not_called()
+
+    def test_the_handler_reports_it_instead_of_returning_a_5xx(self, data_247: GoogleHealth247Data) -> None:
+        handler = GoogleWebhookHandler(data_247=data_247, workouts=MagicMock())
+
+        with (
+            patch.object(data_247, "sync_data_type", side_effect=UnsupportedGranularityError(DataGranularity.HOURLY)),
+            patch("app.services.providers.google_health.webhook_handler.log_and_capture_error") as capture,
+        ):
+            saved = handler._fetch_and_save(MagicMock(), USER_ID, "steps", START, END)
+
+        assert saved == 0
+        capture.assert_called_once()

@@ -60,7 +60,7 @@ The Health API exposes the same underlying data through three different operatio
 <Warning>
 Windowed `dataPoints:rollUp` aggregates are currently disabled. A rollUp window starts wherever the requested range does, so the same reading came back under a different timestamp on a later sync and was inserted as a duplicate rather than updated.
 
-Because `hourly` and `daily` cannot be honoured without it, Google Health **refuses** them rather than storing raw data under an aggregating setting: a scheduled pull is reported as a failed `data_247` sync, and a webhook notification is logged and dropped. Sleep sessions and derived daily totals are unaffected and keep syncing. Set the provider's granularity to `raw` to resume the rest.
+Because `hourly` and `daily` cannot be honoured without it, Google Health **refuses** them rather than storing raw data under an aggregating setting: a scheduled pull is reported as a failed `data_247` sync, and a webhook notification is reported to the error tracker and dropped (it is not answered with a 5xx, which Google would only retry). Sleep sessions and derived daily totals are unaffected and keep syncing. Set the provider's granularity to `raw` to resume the rest.
 </Warning>
 
 Daily basal energy is the one exception: it is derived from `dataPoints:dailyRollUp`, whose windows are anchored to civil days and so do not drift.

@@ -183,7 +183,8 @@ class GoogleHealth247Data(Base247DataTemplate):
 
         Returns None when ``data_type`` is not a registered metric. Sleep and exercise
         are owned by their own handlers and are routed there by the webhook handler
-        before ever reaching here, so an unrecognised type is a safe no-op.
+        before ever reaching here, so an unrecognised type is a safe no-op. Raises
+        UnsupportedGranularityError, which the webhook handler reports without a 5xx.
         """
         metric = next((m for m in METRICS if m.data_type == data_type), None)
         if metric is None:
@@ -192,20 +193,7 @@ class GoogleHealth247Data(Base247DataTemplate):
             self.settings_repo.get_data_granularity(db, self.provider_name) or settings.default_data_granularity
         )
         if granularity is not DataGranularity.RAW:
-            # Refused, not raised: a webhook is retried on a 5xx, so raising here would restate
-            # a config error Google cannot fix until the notification expires. The scheduled
-            # pull reports it as a failed sync.
-            log_structured(
-                self.logger,
-                "warning",
-                str(UnsupportedGranularityError(granularity)),
-                provider=self.provider_name,
-                task="sync_data_type",
-                user_id=str(user_id),
-                data_type=data_type,
-                granularity=granularity.value,
-            )
-            return None
+            raise UnsupportedGranularityError(granularity)
         if metric.use_list(granularity):
             samples = self._native_samples(db, user_id, metric, start_time, end_time)
         else:
