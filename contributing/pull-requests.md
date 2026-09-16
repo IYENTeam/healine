@@ -75,9 +75,6 @@ data_source_id belonging to another user   -> 200, [] , total_count 0
 ```
 See [#1626](https://github.com/the-momentum/open-wearables/pull/1626), [#1628](https://github.com/the-momentum/open-wearables/pull/1628), [#1557](https://github.com/the-momentum/open-wearables/pull/1557).
 
-**"No behaviour change" - prove the negative.** A refactor or a chore that claims nothing changed needs evidence, not a promise. Compare something generated: `api.openapi()` on `main` vs your branch, a diff of responses, the same test count before and after.
-See [#1620](https://github.com/the-momentum/open-wearables/pull/1620) (byte-identical OpenAPI via `cmp`), [#1621](https://github.com/the-momentum/open-wearables/pull/1621).
-
 **Performance or resource fix - numbers in a table, with the conditions.** Before vs after, plus enough context to judge the numbers: data size, concurrency, config.
 
 | stream auth | connections held (8 concurrent streams) |
