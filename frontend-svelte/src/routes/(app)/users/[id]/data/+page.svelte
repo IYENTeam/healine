@@ -4,12 +4,12 @@
 	import { CAPTION } from '$lib/components/ui/typography';
 	import Heatmap from '$lib/components/summary/Heatmap.svelte';
 	import ProviderShare from '$lib/components/summary/ProviderShare.svelte';
-	import SummaryFilters from '$lib/components/summary/SummaryFilters.svelte';
+	import FilterBar from '$lib/components/filters/FilterBar.svelte';
 	import SummaryTotals from '$lib/components/summary/SummaryTotals.svelte';
 	import TimelinePanel from '$lib/components/summary/TimelinePanel.svelte';
 	import { providerLabel } from '$lib/providers/labels';
 	import { narrowToProvider } from '$lib/summary/narrow';
-	import { plottable } from '$lib/summary/period';
+	import { plottable } from '$lib/filters/period';
 	import { humanise } from '$lib/utils/text';
 	import { withParams } from '$lib/utils/url';
 	import type { PageData } from './$types';
@@ -30,7 +30,7 @@
 </script>
 
 <div class="flex flex-col gap-4">
-	<SummaryFilters
+	<FilterBar
 		period={data.period}
 		{hrefFor}
 		providers={connected}

@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { ALL_TIME, parsePeriod, periodBucket, periodWindow, spanDays, weekStart } from './period';
+import {
+	ALL_TIME,
+	parsePeriod,
+	periodBucket,
+	periodWindow,
+	spanDays,
+	weekStart
+} from '$lib/filters/period';
 import { narrowToProvider } from './narrow';
 import { toRows, totalsFromTimeline } from './timeline';
 import type { DataTimeline } from './types';

@@ -1,5 +1,5 @@
 import type { DataTimeline, TimelineSeries } from './types';
-import { weekStart } from './period';
+import { weekStart } from '$lib/filters/period';
 
 export type Cell = { date: string; count: number };
 export type Row = { key: string; cells: Cell[]; total: number };

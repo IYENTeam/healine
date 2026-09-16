@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { plottable, type Period } from '$lib/summary/period';
+	import { plottable, type Period } from '$lib/filters/period';
 	import { totalsFromTimeline } from '$lib/summary/timeline';
 	import type { DataTimeline } from '$lib/summary/types';
 	import CountRanking from './CountRanking.svelte';

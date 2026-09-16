@@ -355,3 +355,235 @@ export const makeDataTimeline = (bucket: string, groupBy: string, provider = '')
 		})
 	};
 };
+
+/** Model and kind, so the card's device icon has something to vary on. */
+const DEVICES: Record<string, { model: string; type: string }> = {
+	garmin: { model: 'Forerunner 265', type: 'watch' },
+	oura: { model: 'Oura Ring Gen3', type: 'ring' },
+	suunto: { model: 'Suunto 9 Peak', type: 'watch' }
+};
+
+/**
+ * Shaped after what each provider actually delivers, nulls included: Oura
+ * reports no heart rate for workouts and strength training has no distance, so
+ * the cards have real gaps to render rather than a full row every time.
+ */
+const WORKOUT_SHAPES = [
+	{ type: 'running', minutes: 48, distance: 8200, calories: 512, avgHr: 148, maxHr: 176 },
+	{ type: 'cycling', minutes: 92, distance: 41200, calories: 980, avgHr: 139, maxHr: 171 },
+	{ type: 'strength_training', minutes: 35, distance: 0, calories: 240, avgHr: 119, maxHr: 158 },
+	{ type: 'swimming', minutes: 40, distance: 1500, calories: 310, avgHr: 0, maxHr: 0 }
+];
+
+const HR_ZONES = {
+	zones: [
+		{ zone: 0, seconds: 240, max_bpm: 114 },
+		{ zone: 1, seconds: 620, max_bpm: 133 },
+		{ zone: 2, seconds: 980, max_bpm: 152 },
+		{ zone: 3, seconds: 810, max_bpm: 171 },
+		{ zone: 4, seconds: 230, max_bpm: 190 }
+	],
+	max_hr: 190,
+	threshold_hr: 165
+};
+
+const POWER_ZONES = {
+	zones: [
+		{ zone: 0, seconds: 300, max_watts: 138 },
+		{ zone: 1, seconds: 900, max_watts: 184 },
+		{ zone: 2, seconds: 1800, max_watts: 219 },
+		{ zone: 3, seconds: 1400, max_watts: 253 },
+		{ zone: 4, seconds: 1120, max_watts: 345 }
+	],
+	ftp_watts: 230
+};
+
+const nullable = (value: number) => (value > 0 ? value : null);
+
+const buildWorkouts = () =>
+	Array.from({ length: 23 }, (_, index) => {
+		const shape = WORKOUT_SHAPES[index % WORKOUT_SHAPES.length];
+		const provider = WORKOUT_OWNER[shape.type];
+		const seconds = shape.minutes * 60;
+		const start = new Date(`${isoDay(index * 3)}T07:12:00.000Z`);
+
+		return {
+			id: `w0000000-0000-4000-8000-${String(index).padStart(12, '0')}`,
+			type: shape.type,
+			name: index % 4 === 0 ? 'Morning session' : null,
+			start_time: start.toISOString(),
+			end_time: new Date(start.getTime() + seconds * 1000).toISOString(),
+			zone_offset: '+02:00',
+			duration_seconds: seconds,
+			source: {
+				provider,
+				source: provider,
+				device: DEVICES[provider].model,
+				device_type: DEVICES[provider].type,
+				device_name: DEVICES[provider].model
+			},
+			entry_source: 'automatic',
+			intensity: 'moderate',
+			calories_kcal: shape.calories,
+			distance_meters: nullable(shape.distance),
+			avg_heart_rate_bpm: nullable(shape.avgHr),
+			max_heart_rate_bpm: nullable(shape.maxHr),
+			heart_rate_min: nullable(shape.avgHr && shape.avgHr - 42),
+			avg_pace_sec_per_km:
+				shape.distance > 0 ? Math.round((seconds / shape.distance) * 1000) : null,
+			elevation_gain_meters: shape.distance > 0 ? 120 : null,
+			steps_count: shape.type === 'running' ? 9400 : null,
+			average_speed: null,
+			max_speed: null,
+			average_cadence: shape.type === 'running' ? 168 : null,
+			average_watts: shape.type === 'cycling' ? 212 : null,
+			max_watts: shape.type === 'cycling' ? 640 : null,
+			moving_time_seconds: seconds,
+			elev_high: null,
+			elev_low: null,
+			// Only Whoop and Garmin (from a FIT file) report these, and power only
+			// where there is a crank to measure it.
+			hr_zones: provider === 'garmin' ? HR_ZONES : null,
+			power_zones: provider === 'garmin' && shape.type === 'cycling' ? POWER_ZONES : null,
+			segments: null
+		};
+	});
+
+let WORKOUTS = buildWorkouts();
+
+/** Restores the list `deleteWorkout` mutates, so /__reset gives every test 23. */
+export const resetWorkouts = () => {
+	WORKOUTS = buildWorkouts();
+};
+
+/**
+ * Base64 of the record it points at, and `prev_`-prefixed going backwards —
+ * the same opaque shape `app/utils/pagination.py` emits. A counter would have
+ * hidden any mangling of the real thing on its way through the URL.
+ */
+const encodeCursor = (id: string, direction: 'next' | 'prev') =>
+	(direction === 'prev' ? 'prev_' : '') + btoa(id);
+
+const decodeCursor = (cursor: string) => ({
+	id: atob(cursor.replace(/^prev_/, '')),
+	backwards: cursor.startsWith('prev_')
+});
+
+/** Keyset paging, like the API: the cursor is a position, not a page number. */
+export const makeWorkouts = (query: URLSearchParams) => {
+	const provider = query.get('provider') ?? '';
+	const type = query.get('type') ?? '';
+	const limit = Number(query.get('limit') ?? 50);
+	const start = new Date(query.get('start_date') ?? 0).getTime();
+	const end = new Date(query.get('end_date') ?? 0).getTime();
+
+	const matching = WORKOUTS.filter((workout) => {
+		const at = new Date(workout.start_time).getTime();
+		if (at < start || at >= end) return false;
+		if (provider && workout.source.provider !== provider) return false;
+		return !type || workout.type === type;
+	});
+
+	const cursor = query.get('cursor');
+	const { id, backwards } = cursor ? decodeCursor(cursor) : { id: '', backwards: false };
+	const found = cursor ? matching.findIndex((workout) => workout.id === id) : -1;
+
+	// Cursor handling mirrors event_record_service.get_workouts line for line,
+	// quirk included: going backwards, `has_more` means "records exist before this
+	// page" and the same flag gates next_cursor — so page one reached by a prev_
+	// cursor comes back with neither cursor and strands the reader.
+	const offset = backwards ? Math.max(found - limit, 0) : found + 1;
+	const hasMore = backwards ? found > limit : offset + limit < matching.length;
+	const data = matching.slice(offset, offset + limit);
+
+	const previous = cursor && data.length && (!backwards || hasMore);
+
+	return {
+		data,
+		pagination: {
+			next_cursor: hasMore && data.length ? encodeCursor(data[data.length - 1].id, 'next') : null,
+			previous_cursor: previous ? encodeCursor(data[0].id, 'prev') : null,
+			has_more: hasMore,
+			total_count: matching.length
+		}
+	};
+};
+
+/** Mutates the shared list, like the API does: the next page load must agree. */
+export const deleteWorkout = (id: string) => {
+	const index = WORKOUTS.findIndex((workout) => workout.id === id);
+	if (index === -1) return false;
+	WORKOUTS.splice(index, 1);
+	return true;
+};
+
+const STEP_MS: Record<string, number> = {
+	raw: 60_000,
+	'1min': 60_000,
+	'5min': 300_000,
+	'15min': 900_000,
+	'1hour': 3_600_000
+};
+
+/**
+ * A plausible curve rather than noise: a warm-up, two efforts and a cool-down,
+ * so the chart has a shape to read and the zone bands have something to band.
+ */
+const heartRateAt = (fraction: number) =>
+	Math.round(112 + 46 * Math.sin(fraction * Math.PI) + 14 * Math.sin(fraction * Math.PI * 6));
+
+export const makeTimeseries = (query: URLSearchParams) => {
+	const types = query.getAll('types');
+	const start = new Date(query.get('start_time') ?? 0).getTime();
+	const end = new Date(query.get('end_time') ?? 0).getTime();
+	const step = STEP_MS[query.get('resolution') ?? 'raw'] ?? 60_000;
+
+	const workout = WORKOUTS.find((entry) => new Date(entry.start_time).getTime() === start);
+	const data: Record<string, unknown>[] = [];
+
+	for (let at = start; at <= end && data.length < 2000; at += step) {
+		const fraction = (at - start) / Math.max(end - start, 1);
+		const sample = {
+			timestamp: new Date(at).toISOString(),
+			zone_offset: '+02:00',
+			source: {
+				provider: workout?.source.provider ?? 'garmin',
+				device: workout?.source.device ?? null,
+				device_name: workout?.source.device_name ?? null
+			},
+			is_daily_total: false
+		};
+
+		if (types.includes('heart_rate') && workout?.avg_heart_rate_bpm) {
+			data.push({ ...sample, type: 'heart_rate', value: heartRateAt(fraction), unit: 'bpm' });
+		}
+		// Only the bike reports power, so only its card gets a second line.
+		if (types.includes('power') && workout?.average_watts) {
+			data.push({
+				...sample,
+				type: 'power',
+				value: Math.round(150 + 120 * Math.abs(Math.sin(fraction * Math.PI * 3))),
+				unit: 'watts'
+			});
+		}
+	}
+
+	// A second device in the same window, so the chart has to keep the two curves
+	// apart rather than sawing between them. Only the run, so other cards stay clean.
+	if (types.includes('heart_rate') && workout?.type === 'running') {
+		for (let at = start; at <= end; at += step * 2) {
+			const fraction = (at - start) / Math.max(end - start, 1);
+			data.push({
+				timestamp: new Date(at).toISOString(),
+				zone_offset: '+02:00',
+				source: { provider: 'apple', device: 'Watch7,1', device_name: 'Apple Watch' },
+				is_daily_total: false,
+				type: 'heart_rate',
+				value: heartRateAt(fraction) - 9,
+				unit: 'bpm'
+			});
+		}
+	}
+
+	return { data, pagination: { has_more: false, total_count: data.length } };
+};

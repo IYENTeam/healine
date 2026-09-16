@@ -2,7 +2,7 @@
 	import ChartRow from '$lib/components/ui/ChartRow.svelte';
 	import ShowAll from '$lib/components/ui/ShowAll.svelte';
 	import { NOTE } from '$lib/components/ui/typography';
-	import { periodWindow, type Period } from '$lib/summary/period';
+	import { periodWindow, type Period } from '$lib/filters/period';
 	import { toRows } from '$lib/summary/timeline';
 	import type { DataTimeline } from '$lib/summary/types';
 	import HeatLegend from './HeatLegend.svelte';

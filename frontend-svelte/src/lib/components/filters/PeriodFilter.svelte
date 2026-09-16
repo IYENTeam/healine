@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import Segmented from '$lib/components/ui/Segmented.svelte';
-	import { defaultRange, todayIso, type Period } from '$lib/summary/period';
+	import { defaultRange, todayIso, type Period } from '$lib/filters/period';
 
 	let {
 		period,

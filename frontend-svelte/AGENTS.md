@@ -1232,6 +1232,117 @@ sends a full ISO timestamp from `periodWindow`'s already half-open `[from, to)`,
 which that rule leaves alone. Switching to bare dates here would hand the same
 day to both and push every window one day long.
 
+## Workouts
+
+Cards over a table, because a workout is a thing with a shape rather than a row
+of columns, and the shape is what an admin is looking for. Each card opens for
+everything the provider sent, a chart of the readings inside the window, the
+zone distribution, and delete.
+
+### Four metrics with dashes, and everything else only where it exists
+
+The collapsed row always shows the same four — duration, distance, calories,
+average heart rate — dashes and all. A dash says "this provider sent nothing",
+and a card that sheds columns is a card you cannot scan down a column of.
+
+Expanded, the rule inverts: absent fields are **dropped**, not dashed. One dash
+carries information; twelve carry none. `detailGroups()` groups what is left by
+subject so a reader scans a topic rather than an alphabet, and a group with
+nothing in it never appears.
+
+`average_speed` and `max_speed` are deliberately never rendered. Their unit is
+not consistent across providers — Suunto stores km/h where Garmin, Strava and
+Google store m/s — so there is no one formula, and a wrong one is worse than a
+gap. `avg_pace_sec_per_km` is safe: the backend derives it from distance and
+moving time.
+
+### The clock belongs to the workout, not the reader
+
+Every time on a card is shifted by the workout's own `zone_offset` and then
+formatted in UTC, so the formatter cannot add the reader's zone on top. A run at
+09:12 in Warsaw must not read as 07:12 because the admin sits in London — the
+customers being debugged are mostly not in the same timezone as the person
+debugging them. No offset means the provider never sent one, and the time says
+`UTC` out loud rather than passing an instant off as a local morning.
+
+### One line per type _and device_
+
+`/timeseries` at any resolution but `raw` returns one row per **(bucket, data
+source, series type)**. Two watches worn the same hour therefore arrive
+interleaved under one type, and merging them by timestamp draws a saw between
+two devices instead of either one's curve — which is exactly what the first
+version did. `toSeries()` keys on type **and** device, names the device in the
+legend only when it disambiguates, and dashes the second line so two identical
+strokes cannot be mistaken for one.
+
+### Readings are fetched raw first, and say when they are not
+
+`resolutionFor()` exists, but the first attempt is always `raw`: a minute average
+smooths precisely the spikes somebody opened the chart to look at. Only when the
+window will not fit in one page does it fall back to buckets, and then the chart
+**says** it is showing averages and over what. The old dashboard asked for
+`resolution=1min`, was silently handed the first hundred raw samples — the
+parameter was accepted and ignored — and drew them as the whole session.
+
+### Zones band the line they describe
+
+One kind of zone at a time, picked by a switch that drives **both** the strip and
+the shading. Two strips side by side left the bands unattributed, which was the
+one question the chart could not answer.
+
+Bands are mapped on their own series' scale and clipped to the frame: a zone
+whose ceiling sits above anything recorded maps to a negative `y`, and an HTML
+label at that position escapes the chart instead of being cropped like the rect.
+A band too short to hold its label goes unlabelled rather than colliding with its
+neighbour.
+
+Zones can exist without the readings they describe — Whoop reports time in zones
+and **no heart-rate samples at all** — so a kind is offered whenever its zone
+data is there, and the bands simply do not appear when there is no line to shade.
+The reverse also bit: seeded and hand-written power zones on providers that
+record no watts produced a switch that did nothing, which is a data problem and
+was fixed in the data.
+
+### Two things fetch themselves
+
+The curve and the figures above the list are their own requests, not part of the
+page load:
+
+- **Samples** load when a card opens. Ten cards' worth of curves would be ten
+  timeseries scans for the nine nobody expands.
+- **Totals** load beside the list. There is no workout aggregate endpoint, so
+  they are summed from every record in the period, and the cards must not queue
+  behind that. An e2e test holds the summary back 600 ms and asserts the cards
+  are on screen while the figures are not.
+
+Both use [`resource()`](src/lib/utils/resource.svelte.ts), which owns the one
+subtlety: a card closed mid-flight must not write into a component that is gone.
+
+Streaming the totals from `load` was tried first and measured — the shell did not
+render before the promise settled, so it bought nothing and the request moved out
+instead.
+
+### Page one is the bare URL
+
+Keyset paging has no page numbers, so `Pagination` takes `hrefFor` as **optional**:
+given it, numbered links; without, the same chip marking the position and nothing
+to jump to. One bar, two kinds of paging.
+
+Coming back to page one must land on the URL with no cursor at all. Reached by a
+`prev_` cursor, page one has nothing before it, so the API reports `has_more`
+false and — because the same flag gates `next_cursor` — withholds the way forward
+too, stranding the reader with both arrows dead. The mock reproduces that quirk
+deliberately, and the walk-the-list test fails without the fix.
+
+### What the backend could take back
+
+A workout aggregate — `count`, `duration_seconds`, `calories_kcal`,
+`distance_meters` for the same filters as the list — would delete the totals
+endpoint here and the 1000-record cap with it. Suunto zones and a per-second
+Suunto curve both need the same thing: its FIT files, which `fit_parser.py`
+already reads for Garmin. Suunto's JSON API carries neither — its only intraday
+heart rate is the 24/7 stream at one sample per ten minutes.
+
 ### Month labels thin themselves out
 
 A year of weekly columns has twelve month starts, which on a phone collide into

@@ -1,6 +1,6 @@
 import { apiGet } from './api';
 import type { DataSummary, DataTimeline, TimelineGroupBy } from '$lib/summary/types';
-import { periodBucket, periodWindow, type Period } from '$lib/summary/period';
+import { periodBucket, periodWindow, type Period } from '$lib/filters/period';
 
 const stamp = (date: Date) => `${date.toISOString().slice(0, 19)}Z`;
 

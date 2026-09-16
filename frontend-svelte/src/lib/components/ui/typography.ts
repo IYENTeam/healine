@@ -4,3 +4,10 @@ export const CAPTION =
 
 /** A one-line explanation standing in for content that is not there. */
 export const NOTE = 'py-6 text-center text-sm text-muted-foreground';
+
+/** A pagination step, and the same square greyed out once it leads nowhere. */
+export const STEP =
+	'border-border hover:bg-surface-muted grid size-10 place-items-center rounded-lg border transition-colors';
+
+export const STEP_SPENT =
+	'border-border text-muted-foreground/40 grid size-10 place-items-center rounded-lg border';

@@ -2,7 +2,7 @@ import { fetchConnections } from '$lib/server/connections';
 import { requireToken } from '$lib/server/guard';
 import { fetchProviders } from '$lib/server/providers';
 import { fetchDataSummary, fetchDataTimeline } from '$lib/server/summary';
-import { parsePeriod } from '$lib/summary/period';
+import { parsePeriod } from '$lib/filters/period';
 import type { TimelineGroupBy } from '$lib/summary/types';
 import type { PageServerLoad } from './$types';
 

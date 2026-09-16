@@ -12,13 +12,19 @@ import {
 	makeDataTimeline,
 	makeRecentRuns,
 	makeSyncHistory,
-	makeUsers
+	deleteWorkout,
+	makeUsers,
+	makeTimeseries,
+	makeWorkouts,
+	resetWorkouts
 } from './fixtures';
 
 // Mutable: the write endpoints change it, and /__reset restores it between tests.
 let USERS = makeUsers();
 /** Connections revoked during a test, so the detail endpoints agree with the list. */
 let DISCONNECTED = new Set<string>();
+/** Holds the workouts summary query back, so a test can watch the page stream. */
+let SLOW_SUMMARY = false;
 
 const PORT = Number(process.env.MOCK_API_PORT ?? 8787);
 
@@ -46,6 +52,13 @@ const server = Bun.serve({
 		if (pathname === '/__reset') {
 			USERS = makeUsers();
 			DISCONNECTED = new Set();
+			SLOW_SUMMARY = false;
+			resetWorkouts();
+			return new Response(null, { status: 204 });
+		}
+
+		if (pathname === '/__slow-summary') {
+			SLOW_SUMMARY = true;
 			return new Response(null, { status: 204 });
 		}
 
@@ -131,6 +144,13 @@ const server = Bun.serve({
 			return json({ status: 'queued', provider: syncMatch[1] });
 		}
 
+		const workoutMatch = pathname.match(/^\/api\/v1\/users\/([^/]+)\/events\/workouts\/([^/]+)$/);
+		if (workoutMatch && request.method === 'DELETE') {
+			return deleteWorkout(workoutMatch[2])
+				? new Response(null, { status: 204 })
+				: json({ detail: 'Workout not found' }, 404);
+		}
+
 		const detailMatch = pathname.match(/^\/api\/v1\/users\/([^/]+)(\/.+)?$/);
 		if (detailMatch && request.method === 'GET') {
 			const user = USERS.find((candidate) => candidate.id === detailMatch[1]);
@@ -173,6 +193,17 @@ const server = Bun.serve({
 							query.get('provider') ?? ''
 						)
 					);
+				}
+				case '/timeseries':
+					return json(makeTimeseries(new URL(request.url).searchParams));
+				case '/events/workouts': {
+					const query = new URL(request.url).searchParams;
+					// The page asks for one screen of records and, separately, for
+					// everything in the period to sum. Only the second is held back.
+					if (SLOW_SUMMARY && Number(query.get('limit')) > 100) {
+						await new Promise((resolve) => setTimeout(resolve, 600));
+					}
+					return json(makeWorkouts(query));
 				}
 				case '/sync/runs':
 					return json(connected ? makeRecentRuns(user.id) : []);

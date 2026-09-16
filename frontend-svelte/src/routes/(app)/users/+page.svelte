@@ -44,7 +44,11 @@
 
 {#snippet pager(position: 'above' | 'below')}
 	<Pagination
-		page={data.users}
+		page={data.users.page}
+		size={data.users.limit}
+		total={data.users.total}
+		previousHref={data.users.has_prev ? pageHref(data.users.page - 1) : null}
+		nextHref={data.users.has_next ? pageHref(data.users.page + 1) : null}
 		hrefFor={pageHref}
 		sizeHrefFor={sizeHref}
 		label="Pagination {position} the list"
