@@ -123,8 +123,9 @@ class Settings(BaseSettings):
     # Independent of ingest_workout_samples (DB samples) and raw_payload_storage (JSON payloads).
     store_fit_files: bool = False
 
-    # Default 24/7 data granularity (raw | hourly | daily) for providers that support it
-    # (Google Health), used when a provider has no explicit ProviderSetting.data_granularity.
+    # Default 24/7 data granularity (raw | hourly | daily) for providers that support it,
+    # used when a provider has no explicit ProviderSetting.data_granularity. Google Health
+    # currently rejects anything but raw — its rollUp operation is disabled (#1577).
     default_data_granularity: DataGranularity = DataGranularity.RAW
 
     # SCORE SETTINGS
