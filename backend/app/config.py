@@ -146,6 +146,8 @@ class Settings(BaseSettings):
 
     # API SETTINGS
     api_base_url: str = "http://localhost:8000"
+    collector_public_url: str | None = None
+    collector_setup_url: str | None = None
 
     # SUUNTO OAUTH SETTINGS
     suunto_client_id: str | None = None
