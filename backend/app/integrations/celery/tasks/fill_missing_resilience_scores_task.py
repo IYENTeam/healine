@@ -21,7 +21,7 @@ logger = getLogger(__name__)
 _RMSSD_TYPE_ID = get_series_type_id(SeriesType.heart_rate_variability_rmssd)
 _SDNN_TYPE_ID = get_series_type_id(SeriesType.heart_rate_variability_sdnn)
 
-# Find all (user, reference_date) pairs that are missing an OW resilience score.
+# Find all (user, reference_date) pairs that are missing an Healine resilience score.
 # active_users: users who have any RMSSD or SDNN data in the extended lookback window.
 # We cross-join with a date series covering the backfill window and filter out any
 # dates that already have a score, ensuring idempotency.
@@ -53,7 +53,7 @@ _MISSING_RESILIENCE_SCORES_QUERY = text("""
 
 @shared_task
 def fill_missing_resilience_scores() -> dict[str, int]:
-    """Find (user, date) pairs without an OW resilience score and calculate them.
+    """Find (user, date) pairs without an Healine resilience score and calculate them.
 
     Runs frequently so scores appear shortly after any sync path that delivers
     HRV data. Uses a LEFT JOIN against generate_series to guarantee idempotency

@@ -1,13 +1,12 @@
 ---
-title: "Open Wearables API Reference"
+title: "Healine API Reference"
 sidebarTitle: "Introduction"
 description: "REST API reference for managing users, connecting wearable providers, and retrieving health data. 3rd-party integration endpoints. Auth via API key."
-keywords: ["open wearables api reference", "wearable rest api docs", "health data api endpoints", "open wearables endpoints"]
-"og:title": "Open Wearables API Reference | REST API Docs"
+keywords: ["healine api reference", "wearable rest api docs", "health data api endpoints", "healine endpoints"]
+"og:title": "Healine API Reference | REST API Docs"
 "og:description": "REST endpoints for managing users, connecting providers, and fetching health data. Authentication via API key."
-"og:url": "https://docs.openwearables.io/api-reference/introduction"
 "og:type": "article"
-"twitter:title": "Open Wearables API Reference | REST API Docs"
+"twitter:title": "Healine API Reference | REST API Docs"
 "twitter:description": "REST endpoints for managing users, connecting providers, and fetching health data. Authentication via API key."
 "twitter:card": "summary_large_image"
 ---
@@ -22,14 +21,14 @@ Internal endpoints (dashboard management, team settings, webhook receivers) are 
   <Card
     title="Swagger UI (full API)"
     icon="terminal"
-    href="https://api.openwearables.io/docs"
+    href="http://localhost:8000/docs"
   >
     Interactive API explorer with all endpoints, including internal
   </Card>
   <Card
     title="OpenAPI JSON"
     icon="file-code"
-    href="https://api.openwearables.io/openapi.json"
+    href="http://localhost:8000/openapi.json"
   >
     Machine-readable OpenAPI 3.1 specification
   </Card>
@@ -37,7 +36,7 @@ Internal endpoints (dashboard management, team settings, webhook receivers) are 
 
 ## Overview
 
-The Open Wearables API provides a unified REST interface to access health data from multiple wearable devices and fitness platforms. All endpoints are versioned under `/api/v1` and follow RESTful conventions.
+The Healine API provides a unified REST interface to access health data from multiple wearable devices and fitness platforms. All endpoints are versioned under `/api/v1` and follow RESTful conventions.
 
 ## Base URL
 
@@ -69,7 +68,7 @@ X-Open-Wearables-API-Key: YOUR_API_KEY
 5. Copy and securely store the key - it is shown only once
 
 <Warning>
-  The full key is displayed only once, right after you create or rotate it. Open Wearables stores a hash of the key, so it cannot be retrieved later - the portal shows just a short prefix (for example `sk-a1b2c3d`) to help you tell keys apart. If you lose a key, rotate it from the same section to get a new one.
+  The full key is displayed only once, right after you create or rotate it. Healine stores a hash of the key, so it cannot be retrieved later - the portal shows just a short prefix (for example `sk-a1b2c3d`) to help you tell keys apart. If you lose a key, rotate it from the same section to get a new one.
 </Warning>
 
 API keys are shared across the whole deployment. Every developer account can see, rotate, and delete every key, see [Credentials](/developer-portal/settings/credentials#keys-are-shared-across-the-deployment).
@@ -194,8 +193,8 @@ Many endpoints support filtering and sorting. Check individual endpoint document
 ## OpenAPI Specification
 
 The complete OpenAPI specification is available at:
-- **Swagger UI:** `https://api.openwearables.io/docs`
-- **OpenAPI JSON:** `https://api.openwearables.io/openapi.json`
+- **Swagger UI:** `http://localhost:8000/docs`
+- **OpenAPI JSON:** `http://localhost:8000/openapi.json`
 
 <Tip>
   The OpenAPI specification is auto-generated from the API code and is always the most accurate reference.

@@ -2,17 +2,16 @@
 title: "Whoop API Integration"
 description: "Connect Whoop via OAuth 2.0. Syncs workouts, sleep with stages, recovery scores, HRV, SpO2, and body measurements in real time via webhooks. Requires an active Whoop membership."
 keywords: ["whoop api", "whoop data integration", "whoop health data", "whoop api open source"]
-"og:title": "Whoop API Integration | Open Wearables"
+"og:title": "Whoop API Integration | Healine"
 "og:description": "Connect Whoop via OAuth 2.0. Syncs workouts, sleep, recovery scores, HRV, and SpO2. Requires Whoop membership."
-"og:url": "https://docs.openwearables.io/providers/whoop-api-integration"
 "og:type": "article"
-"twitter:title": "Whoop API Integration | Open Wearables"
+"twitter:title": "Whoop API Integration | Healine"
 "twitter:description": "Connect Whoop via OAuth 2.0. Syncs workouts, sleep, recovery scores, HRV, and SpO2. Requires Whoop membership."
 "twitter:card": "summary_large_image"
 ---
 
 <Note>
-**Need help with your Whoop integration?** Pop into our [Discord](https://discord.gg/qrcfFnNE6H) if you have questions or want to discover how Open Wearables can solve your problems.
+**Need help with your Whoop integration?** Pop into our [Discord](https://discord.gg/qrcfFnNE6H) if you have questions or want to discover how Healine can solve your problems.
 </Note>
 
 ## Overview
@@ -32,7 +31,7 @@ Whoop provides access to workout, sleep, recovery, and body measurement data thr
 
 ### Workout field availability
 
-Several workout fields are conditional in the Whoop API and are `null` for most workouts. This is expected upstream behaviour, not a gap in Open Wearables' mapping — the values never arrive in the payload.
+Several workout fields are conditional in the Whoop API and are `null` for most workouts. This is expected upstream behaviour, not a gap in Healine' mapping — the values never arrive in the payload.
 
 | Field (`/workouts` response) | From Whoop | Availability |
 |------|------|------|
@@ -67,7 +66,7 @@ Whoop reports sleep stages as **aggregate durations for the whole sleep**, not a
 | `respiratory_rate`, sleep performance / consistency / efficiency percentages | Stage transitions within the sleep |
 
 <Note>
-  This is an upstream API limitation, not a gap in Open Wearables. Whoop's three sleep endpoints — `/v2/activity/sleep`, `/v2/activity/sleep/{sleepId}` and `/v2/cycle/{cycleId}/sleep` — all return the same `Sleep` schema, whose `score.stage_summary` contains only millisecond totals (`total_light_sleep_time_milli`, `total_slow_wave_sleep_time_milli`, `total_rem_sleep_time_milli`, and so on). No Whoop endpoint exposes per-stage intervals, and no sleep schema in the [Whoop OpenAPI spec](https://api.prod.whoop.com/developer/doc/openapi.json) contains an array of stage records.
+  This is an upstream API limitation, not a gap in Healine. Whoop's three sleep endpoints — `/v2/activity/sleep`, `/v2/activity/sleep/{sleepId}` and `/v2/cycle/{cycleId}/sleep` — all return the same `Sleep` schema, whose `score.stage_summary` contains only millisecond totals (`total_light_sleep_time_milli`, `total_slow_wave_sleep_time_milli`, `total_rem_sleep_time_milli`, and so on). No Whoop endpoint exposes per-stage intervals, and no sleep schema in the [Whoop OpenAPI spec](https://api.prod.whoop.com/developer/doc/openapi.json) contains an array of stage records.
 
   The only timestamps on a Whoop sleep are the overall `start` and `end`.
 </Note>
@@ -76,8 +75,8 @@ Whoop reports sleep stages as **aggregate durations for the whole sleep**, not a
 
 | Method | Description |
 |--------|-------------|
-| **Polling (pull)** | Open Wearables periodically fetches workout, sleep, recovery, and body measurement data via the Whoop API (default: every hour via Celery Beat) |
-| **Webhooks (push)** | Whoop notifies Open Wearables in real time when workout, sleep, or recovery data is created, updated, or deleted. The handler fetches the specific resource by ID and saves it immediately. |
+| **Polling (pull)** | Healine periodically fetches workout, sleep, recovery, and body measurement data via the Whoop API (default: every hour via Celery Beat) |
+| **Webhooks (push)** | Whoop notifies Healine in real time when workout, sleep, or recovery data is created, updated, or deleted. The handler fetches the specific resource by ID and saves it immediately. |
 
 ## What you need by the end
 
@@ -125,7 +124,7 @@ Whoop reports sleep stages as **aggregate durations for the whole sleep**, not a
     </Warning>
   </Step>
 
-  <Step title="Configure credentials in Open Wearables">
+  <Step title="Configure credentials in Healine">
     Add the following to your `.env` file:
 
 ```bash
@@ -148,7 +147,7 @@ WHOOP_DEFAULT_SCOPE=offline read:cycles read:sleep read:recovery read:workout re
   </Step>
 
   <Step title="Connect a user via OAuth">
-    With credentials configured and your Open Wearables instance running, initiate the OAuth flow to connect a user's Whoop account.
+    With credentials configured and your Healine instance running, initiate the OAuth flow to connect a user's Whoop account.
 
     **1. Get the authorization URL:**
 
@@ -167,7 +166,7 @@ WHOOP_DEFAULT_SCOPE=offline read:cycles read:sleep read:recovery read:workout re
 
     **2. Redirect the user** to the `authorization_url`. They will log in to Whoop and authorize your app.
 
-    **3. Whoop redirects back** to the callback URI configured in your `.env` (`WHOOP_REDIRECT_URI`). Open Wearables automatically exchanges the authorization code for access and refresh tokens.
+    **3. Whoop redirects back** to the callback URI configured in your `.env` (`WHOOP_REDIRECT_URI`). Healine automatically exchanges the authorization code for access and refresh tokens.
 
     **4. Verify the connection** was created:
 
@@ -184,7 +183,7 @@ WHOOP_DEFAULT_SCOPE=offline read:cycles read:sleep read:recovery read:workout re
   </Step>
 
   <Step title="Set up webhooks (optional)">
-    Webhooks give you real-time updates instead of waiting for the next polling cycle. When Whoop records a new workout, sleep session, or recovery, it immediately notifies Open Wearables, which fetches and saves the record.
+    Webhooks give you real-time updates instead of waiting for the next polling cycle. When Whoop records a new workout, sleep session, or recovery, it immediately notifies Healine, which fetches and saves the record.
 
     **1. Register the webhook URL in the Whoop Developer Dashboard:**
 
@@ -249,7 +248,7 @@ WHOOP_DEFAULT_SCOPE=offline read:cycles read:sleep read:recovery read:workout re
   </Step>
 
   <Step title="Verify the integration">
-    Once data has synced, fetch it via the Open Wearables API:
+    Once data has synced, fetch it via the Healine API:
 
     ```bash
     # Fetch workouts
@@ -281,7 +280,7 @@ Whoop applies two rate limits by default:
 | Per minute | 100 requests |
 | Per day | 10,000 requests |
 
-**How Open Wearables uses the quota:** Each sync cycle per user makes ~4-7 API requests (workouts, sleep, recovery, and body measurements — each paginated at 25 items per page). With the default polling interval of 1 hour, that's roughly **~120 requests per user per day**. This means the default rate limits comfortably support **~60-80 connected users** per app.
+**How Healine uses the quota:** Each sync cycle per user makes ~4-7 API requests (workouts, sleep, recovery, and body measurements — each paginated at 25 items per page). With the default polling interval of 1 hour, that's roughly **~120 requests per user per day**. This means the default rate limits comfortably support **~60-80 connected users** per app.
 
 If you need to support more users right now, you can request increased rate limits from Whoop via the [Developer Dashboard](https://developer-dashboard.whoop.com/).
 
@@ -301,13 +300,13 @@ With webhooks enabled, most data arrives in real time and the polling cycle only
 | `read:body_measurement` | Read body measurements (height, weight) |
 | `read:profile` | Read user profile information |
 
-The default scope `offline read:cycles read:sleep read:recovery read:workout read:body_measurement read:profile` covers all data types currently processed by Open Wearables.
+The default scope `offline read:cycles read:sleep read:recovery read:workout read:body_measurement read:profile` covers all data types currently processed by Healine.
 
 ## Next Steps
 
 <CardGroup cols={2}>
   <Card title="API Reference" icon="terminal" href="/api-reference/introduction">
-    Explore the Open Wearables API endpoints.
+    Explore the Healine API endpoints.
   </Card>
   <Card title="Architecture" icon="diagram" href="/architecture/system-overview">
     Understand the overall system architecture.
@@ -319,6 +318,6 @@ The default scope `offline read:cycles read:sleep read:recovery read:workout rea
 <Note>
 **Need Help?**
 - Join our [Discord](https://discord.gg/qrcfFnNE6H) and ask a question.
-- Check [GitHub Discussions](https://github.com/the-momentum/open-wearables/discussions).
+- Check [Healine issues](https://github.com/IYENTeam/healine/issues).
 - Check the [Whoop Developer Documentation](https://developer.whoop.com/docs/developing/getting-started).
 </Note>

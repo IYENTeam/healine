@@ -1,20 +1,19 @@
 ---
 title: "Provider Webhook Subscriptions"
 sidebarTitle: "Provider Webhook Subscriptions"
-description: "Manage app-level webhook subscriptions with Polar, Oura, and Strava so those providers push events to your Open Wearables instance in real time."
+description: "Manage app-level webhook subscriptions with Polar, Oura, and Strava so those providers push events to your Healine instance in real time."
 keywords: ["provider webhooks", "webhook subscriptions", "polar webhook", "oura webhook", "strava webhook", "incoming webhooks"]
-"og:title": "Provider Webhook Subscriptions | Open Wearables"
+"og:title": "Provider Webhook Subscriptions | Healine"
 "og:description": "Register, inspect, update, and delete app-level webhook subscriptions with Polar, Oura, and Strava."
-"og:url": "https://docs.openwearables.io/api-reference/guides/provider-webhook-subscriptions"
 "og:type": "article"
 ---
 
 ## Overview
 
-Provider webhook subscriptions tell a wearable provider (Polar, Oura, Strava) where to send event notifications. When an active subscription is in place, the provider pushes a lightweight notification to your Open Wearables instance whenever new data is available. Open Wearables then fetches, normalizes, and stores the data — and can forward it onward via [Outgoing Webhooks](/api-reference/guides/webhooks).
+Provider webhook subscriptions tell a wearable provider (Polar, Oura, Strava) where to send event notifications. When an active subscription is in place, the provider pushes a lightweight notification to your Healine instance whenever new data is available. Healine then fetches, normalizes, and stores the data — and can forward it onward via [Outgoing Webhooks](/api-reference/guides/webhooks).
 
 <Note>
-  This page covers **provider → Open Wearables** subscriptions (inbound). For **Open Wearables → your app** event delivery, see the [Outgoing Webhooks guide](/api-reference/guides/webhooks).
+  This page covers **provider → Healine** subscriptions (inbound). For **Healine → your app** event delivery, see the [Outgoing Webhooks guide](/api-reference/guides/webhooks).
 </Note>
 
 All endpoints require a developer Bearer token:
@@ -131,7 +130,7 @@ Provider-specific behaviour:
 | **Strava** | Registers subscription; Strava sends a GET challenge that must echo back `hub.challenge` | Returns `skipped` | — |
 
 <Note>
-  **Polar**: the `signature_secret_key` is returned by Polar exactly once, on creation. Open Wearables saves it automatically to the `provider_settings` table (`webhook_secret` column). If you need to rotate it, delete and recreate the webhook.
+  **Polar**: the `signature_secret_key` is returned by Polar exactly once, on creation. Healine saves it automatically to the `provider_settings` table (`webhook_secret` column). If you need to rotate it, delete and recreate the webhook.
 </Note>
 
 ---
@@ -263,7 +262,7 @@ These endpoints receive the actual event notifications from providers. They are 
 
 The callback URL you register with a provider must point to `POST /api/v1/providers/{provider}/webhooks`. For local development, use [ngrok](/dev-guides/ngrok-setup) to expose that endpoint publicly.
 
-Withings recommends adding a random shared secret to the exact callback URL. Set `WITHINGS_WEBHOOK_TOKEN` to a value generated with `openssl rand -hex 32`; Open Wearables registers `?token=<secret>` and validates it on notification POSTs and reachability HEAD probes. See the [Withings notification security guidance](https://developer.withings.com/developer-guide/v3/integration-guide/public-health-data-api/data-api/notifications/notification-overview/).
+Withings recommends adding a random shared secret to the exact callback URL. Set `WITHINGS_WEBHOOK_TOKEN` to a value generated with `openssl rand -hex 32`; Healine registers `?token=<secret>` and validates it on notification POSTs and reachability HEAD probes. See the [Withings notification security guidance](https://developer.withings.com/developer-guide/v3/integration-guide/public-health-data-api/data-api/notifications/notification-overview/).
 
 Withings also recommends allowing its published notification IP ranges at the network edge. Those ranges are distributed through the DNS records documented in the same security guidance and should be monitored for changes by the deployment operator.
 

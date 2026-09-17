@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     environment: EnvironmentType = EnvironmentType.LOCAL
 
     # API SETTINGS
-    api_name: str = "Open Wearables API"
+    api_name: str = "Healine API"
     api_port: int = 8000
     api_v1: str = "/api/v1"
     api_latest: str = api_v1
@@ -55,9 +55,9 @@ class Settings(BaseSettings):
     # DATABASE SETTINGS
     db_host: str = "db"
     db_port: int = 5432
-    db_name: str = "open-wearables"
-    db_user: str = "open-wearables"
-    db_password: SecretStr = SecretStr("open-wearables")
+    db_name: str = "healine"
+    db_user: str = "healine"
+    db_password: SecretStr = SecretStr("healine")
 
     # Sentry
     SENTRY_ENABLED: bool = False
@@ -244,7 +244,7 @@ class Settings(BaseSettings):
     # EMAIL SETTINGS (Resend)
     resend_api_key: SecretStr | None = None
     email_from_address: str | None = None
-    email_from_name: str = "Open Wearables"
+    email_from_name: str = "Healine"
     frontend_url: str = "http://localhost:3000"
     invitation_expire_days: int = 7
     email_max_retries: int = 5

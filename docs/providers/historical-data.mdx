@@ -3,11 +3,10 @@ title: "Historical Data Availability"
 sidebarTitle: "Historical Data"
 description: "How far back you can backfill data per provider: Garmin, Oura, Whoop, Ultrahuman, Strava, Fitbit, Polar, Suunto, Google Health Connect, Google Health API, and more."
 keywords: ["historical data", "backfill window", "how far back sync", "max historical days", "wearable data history"]
-"og:title": "Historical Data Availability | Open Wearables"
+"og:title": "Historical Data Availability | Healine"
 "og:description": "Maximum historical backfill window per wearable provider - how far back you can sync data."
-"og:url": "https://docs.openwearables.io/providers/historical-data"
 "og:type": "article"
-"twitter:title": "Historical Data Availability | Open Wearables"
+"twitter:title": "Historical Data Availability | Healine"
 "twitter:description": "Maximum historical backfill window per wearable provider - how far back you can sync data."
 "twitter:card": "summary_large_image"
 ---
@@ -17,7 +16,7 @@ This page documents how far back historical data can be backfilled from each pro
 Use it to compare providers when planning an integration. For the full list of data types per provider, see the [Coverage Matrix](/providers/coverage).
 
 <Info>
-In v0.7 and below, Open Wearables runs a historical sync automatically when a user connects a provider through OAuth (`HISTORICAL_SYNC_ON_CONNECT=true`). If you haven't changed that setting, the range you actually get on connect is **90 days** for pull-based providers, and **30 days** for Garmin, whose webhook-based backfill is capped at 30 days from the user's consent date - no matter how far back the provider itself would let you go. This default is planned to change in a future release.
+In v0.7 and below, Healine runs a historical sync automatically when a user connects a provider through OAuth (`HISTORICAL_SYNC_ON_CONNECT=true`). If you haven't changed that setting, the range you actually get on connect is **90 days** for pull-based providers, and **30 days** for Garmin, whose webhook-based backfill is capped at 30 days from the user's consent date - no matter how far back the provider itself would let you go. This default is planned to change in a future release.
 
 To control the range yourself, set `HISTORICAL_SYNC_ON_CONNECT=false` and call `POST /api/v1/providers/{provider}/users/{user_id}/sync/historical` explicitly, where `days` defaults to 90 and is capped at 365. See [Historical Backfill](/dev-guides/integration-guide#step-3-historical-backfill-automatic) in the Integration Guide for the full flow.
 </Info>

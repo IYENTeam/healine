@@ -12,7 +12,8 @@ import {
   LayoutGrid,
   Menu,
 } from 'lucide-react';
-import logotype from '@/logotype.svg';
+import { BrandLogo } from '@/components/common/brand-logo';
+import { APP_NAME, DOCUMENTATION_URL } from '@/lib/constants/app';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/use-auth';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -61,7 +62,7 @@ const menuItems = [
   },
   {
     title: 'Documentation',
-    url: 'https://openwearables.io/docs',
+    url: DOCUMENTATION_URL,
     icon: FileText,
     external: true,
   },
@@ -75,7 +76,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
     <>
       {/* Header */}
       <div className="p-4 border-b border-border/40">
-        <img src={logotype} alt="Open Wearables" className="h-auto" />
+        <BrandLogo className="h-9" />
       </div>
 
       {/* Navigation */}
@@ -158,7 +159,7 @@ export function SimpleSidebar() {
   if (isMobile) {
     return (
       <div className="sticky top-0 z-40 flex items-center justify-between border-b border-border/40 bg-black px-4 py-3 md:hidden">
-        <img src={logotype} alt="Open Wearables" className="h-6" />
+        <BrandLogo className="h-6" />
         <Sheet open={openMobile} onOpenChange={setOpenMobile}>
           <SheetTrigger asChild>
             <Button variant="ghost" size="icon" aria-label="Open menu">
@@ -171,9 +172,7 @@ export function SimpleSidebar() {
           >
             <SheetHeader className="sr-only">
               <SheetTitle>Navigation</SheetTitle>
-              <SheetDescription>
-                Open Wearables navigation menu
-              </SheetDescription>
+              <SheetDescription>{APP_NAME} navigation menu</SheetDescription>
             </SheetHeader>
             <div className="flex h-full w-full flex-col">
               <SidebarContent onNavigate={() => setOpenMobile(false)} />

@@ -3,7 +3,7 @@ documented error-envelope shape instead of bubbling the exception up.
 
 Each tool has two error paths worth covering:
 - inner `NotFoundError` from the user-lookup block -> "User not found" envelope
-- outer `OpenWearablesError` from the downstream resource fetch -> generic error envelope
+- outer `HealineError` from the downstream resource fetch -> generic error envelope
 """
 
 from collections.abc import Awaitable, Callable

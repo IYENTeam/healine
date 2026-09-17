@@ -1,20 +1,19 @@
 ---
 title: "Health Data MCP Server"
 sidebarTitle: "Overview"
-description: "The Open Wearables MCP server connects Claude Desktop and Cursor to health data. Query sleep, workouts, and activity in natural language. FastMCP-based."
+description: "The Healine MCP server connects Claude Desktop and Cursor to health data. Query sleep, workouts, and activity in natural language. FastMCP-based."
 keywords: ["mcp server health data", "model context protocol wearables", "health data mcp", "wearable ai integration"]
-"og:title": "Health Data MCP Server | Open Wearables"
+"og:title": "Health Data MCP Server | Healine"
 "og:description": "Connect Claude Desktop and Cursor to wearable health data via MCP. Query sleep, workouts, and activity in natural language."
-"og:url": "https://docs.openwearables.io/mcp-server"
 "og:type": "article"
-"twitter:title": "Health Data MCP Server | Open Wearables"
+"twitter:title": "Health Data MCP Server | Healine"
 "twitter:description": "Connect Claude Desktop and Cursor to wearable health data via MCP. Query sleep, workouts, and activity in natural language."
 "twitter:card": "summary_large_image"
 ---
 
 ## What is MCP?
 
-MCP (Model Context Protocol) is a standard for connecting AI assistants to external data sources. The Open Wearables MCP server enables AI tools like **Claude Desktop** and **Cursor** to query your wearable health data through natural language conversations.
+MCP (Model Context Protocol) is a standard for connecting AI assistants to external data sources. The Healine MCP server enables AI tools like **Claude Desktop** and **Cursor** to query your wearable health data through natural language conversations.
 
 <Note>
   The MCP server is **decoupled** from the backend - it communicates via REST API using your API key. This means it can be deployed independently and uses existing, tested API endpoints.
@@ -22,13 +21,13 @@ MCP (Model Context Protocol) is a standard for connecting AI assistants to exter
 
 ## Demo
 
-This demo uses generated sample data to show the capabilities of Claude's MCP integration with Open Wearables. User 1 has short, irregular sleep patterns while User 2 shows longer, more consistent sleep quality. Claude analyzes both datasets to identify key differences and health implications.
+This demo uses generated sample data to show the capabilities of Claude's MCP integration with Healine. User 1 has short, irregular sleep patterns while User 2 shows longer, more consistent sleep quality. Claude analyzes both datasets to identify key differences and health implications.
 
 <iframe
   width="100%"
   height="400"
   src="https://www.youtube.com/embed/Jb8N2jNbs1Y"
-  title="Open Wearables MCP Server Demo"
+  title="Healine MCP Server Demo"
   frameBorder="0"
   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
   allowFullScreen
@@ -93,8 +92,8 @@ Claude: "Over the last 2 weeks, John completed 8 workouts..."
 ### Prerequisites
 
 - [uv](https://docs.astral.sh/uv/) package manager
-- Running Open Wearables backend (or access to a deployed instance)
-- Valid Open Wearables API key
+- Running Healine backend (or access to a deployed instance)
+- Valid Healine API key
 
 ### 1. Install dependencies
 
@@ -117,7 +116,7 @@ OPEN_WEARABLES_API_KEY=ow_your_api_key_here
 ```
 
 <Tip>
-  To generate your API key, go to the **Open Wearables Dashboard -> Settings -> Credentials -> Create API Key**.
+  To generate your API key, go to the **Healine Dashboard -> Settings -> Credentials -> Create API Key**.
 </Tip>
 
 ### 3. Test the server
@@ -129,8 +128,8 @@ uv run start
 If the server starts successfully, you should see output similar to:
 
 ```bash
-2026-02-10 07:48:22,016 - app.main - INFO - Open Wearables MCP server initialized. API URL: http://localhost:8000
-[02/10/26 07:48:22] INFO     Starting MCP server 'open-wearables' with transport 'stdio'
+2026-02-10 07:48:22,016 - app.main - INFO - Healine MCP server initialized. API URL: http://localhost:8000
+[02/10/26 07:48:22] INFO     Starting MCP server 'healine' with transport 'stdio'
 2026-02-10 07:48:22,048 - docket.worker - INFO - Starting worker 'MacBook-Pro-26.local#19901' with the following tasks:
 2026-02-10 07:48:22,049 - docket.worker - INFO - * trace(message: str, ...)
 2026-02-10 07:48:22,049 - docket.worker - INFO - * fail(message: str, ...)

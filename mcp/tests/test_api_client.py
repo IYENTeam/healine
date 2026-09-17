@@ -1,4 +1,4 @@
-"""Tests for the typed exception hierarchy raised by `OpenWearablesClient`.
+"""Tests for the typed exception hierarchy raised by `HealineClient`.
 
 Mirrors the pattern used by `sdk/python/tests/`: `pytest` + `pytest-asyncio`
 + `pytest-httpx`, with mocked HTTP responses.
@@ -7,26 +7,26 @@ Mirrors the pattern used by `sdk/python/tests/`: `pytest` + `pytest-asyncio`
 import pytest
 from pytest_httpx import HTTPXMock
 
-from app.services.api_client import OpenWearablesClient
+from app.services.api_client import HealineClient
 from app.services.exceptions import (
     AuthenticationError,
     ConfigurationError,
+    HealineError,
     NotFoundError,
-    OpenWearablesError,
 )
 
 
 @pytest.fixture
-def api_client() -> OpenWearablesClient:
+def api_client() -> HealineClient:
     """Fresh client wired to a predictable base URL + dummy key."""
-    client = OpenWearablesClient()
+    client = HealineClient()
     client._api_key = "test_key"
     client.base_url = "https://api.test.com"
     return client
 
 
 async def test_request_raises_authentication_error_on_401(
-    api_client: OpenWearablesClient,
+    api_client: HealineClient,
     httpx_mock: HTTPXMock,
 ) -> None:
     """A 401 from the backend surfaces as `AuthenticationError`."""
@@ -41,7 +41,7 @@ async def test_request_raises_authentication_error_on_401(
 
 
 async def test_request_raises_not_found_error_on_404(
-    api_client: OpenWearablesClient,
+    api_client: HealineClient,
     httpx_mock: HTTPXMock,
 ) -> None:
     """A 404 from the backend surfaces as `NotFoundError`."""
@@ -58,7 +58,7 @@ async def test_request_raises_not_found_error_on_404(
 
 async def test_request_raises_configuration_error_when_key_missing() -> None:
     """A request with no API key raises `ConfigurationError` before hitting the network."""
-    client = OpenWearablesClient()
+    client = HealineClient()
     client._api_key = ""
 
     with pytest.raises(ConfigurationError, match="OPEN_WEARABLES_API_KEY is not configured"):
@@ -66,7 +66,7 @@ async def test_request_raises_configuration_error_when_key_missing() -> None:
 
 
 def test_typed_errors_inherit_from_base() -> None:
-    """Every typed error is catchable via the `OpenWearablesError` base class."""
-    assert issubclass(AuthenticationError, OpenWearablesError)
-    assert issubclass(NotFoundError, OpenWearablesError)
-    assert issubclass(ConfigurationError, OpenWearablesError)
+    """Every typed error is catchable via the `HealineError` base class."""
+    assert issubclass(AuthenticationError, HealineError)
+    assert issubclass(NotFoundError, HealineError)
+    assert issubclass(ConfigurationError, HealineError)

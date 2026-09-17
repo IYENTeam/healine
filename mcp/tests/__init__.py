@@ -1,1 +1,1 @@
-"""Tests for the Open Wearables MCP server."""
+"""Tests for the Healine MCP server."""

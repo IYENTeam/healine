@@ -30,7 +30,7 @@ def process_activity_notification(
     notification: dict[str, Any],
     request_trace_id: str,
 ) -> list[dict[str, Any]]:
-    """Process a single Garmin activity notification for all linked OW profiles.
+    """Process a single Garmin activity notification for all linked Healine profiles.
 
     Returns one result dict per linked profile.  The first connection is treated
     as primary (WEBHOOK source); any additional profiles sharing the same Garmin

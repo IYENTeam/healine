@@ -6,7 +6,7 @@ plugins:
 - celery
 - sentry
 project_description: ''
-project_name: open-wearables
+project_name: healine
 project_type: api-microservice
 python_versions:
 - '3.13'

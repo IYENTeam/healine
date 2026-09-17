@@ -239,7 +239,7 @@ class WithingsWebhookHandler(BaseWebhookHandler):
     ) -> dict[str, Any]:
         """Revoke every local connection for this Withings account — access was lost upstream.
 
-        One Withings account can be linked to multiple OW users (multi-account
+        One Withings account can be linked to multiple Healine users (multi-account
         fan-out); all of them lose access together, so all of them are revoked.
         """
         connections = self.connection_repo.get_all_by_provider_user_id(db, "withings", notification.userid)

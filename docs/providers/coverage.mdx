@@ -3,11 +3,10 @@ title: "Wearable API Coverage Matrix"
 sidebarTitle: "Coverage Matrix"
 description: "Data types by provider: Apple, Garmin, Polar, Suunto, Oura, Whoop, Ultrahuman, Strava, Fitbit, and Google Health Connect. OAuth, workouts, sleep, and timeseries support."
 keywords: ["wearable api coverage", "health data types by provider", "wearable data types", "provider data support"]
-"og:title": "Wearable API Coverage Matrix | Open Wearables"
+"og:title": "Wearable API Coverage Matrix | Healine"
 "og:description": "Health data types by provider: Apple, Garmin, Polar, Suunto, Oura, Whoop, Ultrahuman, Strava, Fitbit, Google Health Connect."
-"og:url": "https://docs.openwearables.io/providers/coverage"
 "og:type": "article"
-"twitter:title": "Wearable API Coverage Matrix | Open Wearables"
+"twitter:title": "Wearable API Coverage Matrix | Healine"
 "twitter:description": "Health data types by provider: Apple, Garmin, Polar, Suunto, Oura, Whoop, Ultrahuman, Strava, Fitbit, Google Health Connect."
 "twitter:card": "summary_large_image"
 ---
@@ -322,7 +321,7 @@ Key differences and limitations to be aware of when working with each provider:
   **Integration Method:** OAuth 2.0 (pull + webhook)
 
   - Data synced via periodic polling; real-time webhook notifications for exercise, sleep, activity, nightly recharge, and Sleepwise events
-  - Webhooks are notify-only: Polar sends a lightweight event payload, Open Wearables acknowledges immediately and enqueues a targeted sync for the affected data type
+  - Webhooks are notify-only: Polar sends a lightweight event payload, Healine acknowledges immediately and enqueues a targeted sync for the affected data type
   - Full sleep processing with stages (deep, light, REM, awake), duration, time in bed, and stage timestamps from hypnogram; sleep efficiency not available in the API
   - Sleep HR timeseries saved from per-night heart rate samples (not summarised avg/min on the sleep record)
   - Continuous 24/7 heart rate sampled at ~5-min intervals via range endpoint (90-day lookback)
@@ -450,7 +449,7 @@ Key differences and limitations to be aware of when working with each provider:
 
 ## Data Normalization
 
-Open Wearables normalizes all incoming data to consistent units and formats:
+Healine normalizes all incoming data to consistent units and formats:
 
 ### Unit Standardization
 
@@ -489,7 +488,7 @@ All timestamps are normalized to **UTC** with timezone information preserved whe
 To see what data is available for a specific user, query the connections endpoint:
 
 ```bash
-curl -X GET "https://api.openwearables.com/api/v1/users/{user_id}/connections" \
+curl -X GET "http://localhost:8000/api/v1/users/{user_id}/connections" \
   -H "X-Open-Wearables-API-Key: YOUR_API_KEY"
 ```
 
@@ -513,7 +512,7 @@ Response shows which providers are connected:
 Then query the timeseries endpoint to see available data:
 
 ```bash
-curl -X GET "https://api.openwearables.com/api/v1/users/{user_id}/timeseries\
+curl -X GET "http://localhost:8000/api/v1/users/{user_id}/timeseries\
 ?start_time=2025-01-01T00:00:00Z\
 &end_time=2025-01-07T23:59:59Z" \
   -H "X-Open-Wearables-API-Key: YOUR_API_KEY"

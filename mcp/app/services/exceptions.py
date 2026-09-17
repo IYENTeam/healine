@@ -1,22 +1,20 @@
-"""Exceptions raised by the Open Wearables MCP client.
+"""Exceptions raised by the Healine MCP client.
 
-Mirrors the naming scheme used in `sdk/python/src/open_wearables/exceptions.py`
-so callers can reason about API failures without having to string-match on
-error messages.
+Typed errors let callers handle API failures without matching error messages.
 """
 
 
-class OpenWearablesError(Exception):
-    """Base exception for MCP client errors talking to the Open Wearables API."""
+class HealineError(Exception):
+    """Base exception for MCP client errors talking to the Healine API."""
 
 
-class AuthenticationError(OpenWearablesError):
+class AuthenticationError(HealineError):
     """Raised when the API key is rejected (HTTP 401)."""
 
 
-class NotFoundError(OpenWearablesError):
+class NotFoundError(HealineError):
     """Raised when a requested resource does not exist (HTTP 404)."""
 
 
-class ConfigurationError(OpenWearablesError):
+class ConfigurationError(HealineError):
     """Raised when the client is not configured (e.g. missing API key)."""

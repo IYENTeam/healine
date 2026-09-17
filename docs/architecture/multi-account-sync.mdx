@@ -1,23 +1,22 @@
 ---
 title: "Multi-Account Sync"
-description: "How Open Wearables handles one provider account (e.g. Garmin) connected to multiple OW user profiles: webhook fan-out, shared sync locks, and backfill coordination."
+description: "How Healine handles one provider account (e.g. Garmin) connected to multiple Healine user profiles: webhook fan-out, shared sync locks, and backfill coordination."
 keywords: ["multi-account sync", "shared garmin account", "linked accounts", "webhook fan-out", "sync deduplication"]
-"og:title": "Multi-Account Sync | Open Wearables Architecture"
-"og:description": "One provider account linked to multiple OW profiles: webhook fan-out, shared sync locks, and backfill coordination without duplicate API calls."
-"og:url": "https://docs.openwearables.io/architecture/multi-account-sync"
+"og:title": "Multi-Account Sync | Healine Architecture"
+"og:description": "One provider account linked to multiple Healine profiles: webhook fan-out, shared sync locks, and backfill coordination without duplicate API calls."
 "og:type": "article"
-"twitter:title": "Multi-Account Sync | Open Wearables Architecture"
-"twitter:description": "One provider account linked to multiple OW profiles: webhook fan-out, shared sync locks, and backfill coordination without duplicate API calls."
+"twitter:title": "Multi-Account Sync | Healine Architecture"
+"twitter:description": "One provider account linked to multiple Healine profiles: webhook fan-out, shared sync locks, and backfill coordination without duplicate API calls."
 "twitter:card": "summary_large_image"
 ---
 
 ## Overview
 
-Some providers (Garmin, Whoop, Oura) identify users by a stable external ID (`provider_user_id`) stored in `user_connection`. This allows one physical provider account to be connected to multiple Open Wearables profiles — a common pattern for testing environments or shared devices.
+Some providers (Garmin, Whoop, Oura) identify users by a stable external ID (`provider_user_id`) stored in `user_connection`. This allows one physical provider account to be connected to multiple Healine profiles — a common pattern for testing environments or shared devices.
 
 **Apple Health** is explicitly excluded: it has no cloud `provider_user_id` (data is uploaded directly from the device via SDK) so linking is not possible.
 
-When multiple OW profiles share the same provider account, the platform must avoid:
+When multiple Healine profiles share the same provider account, the platform must avoid:
 
 - **Duplicate API calls** — providers like Garmin rate-limit or prohibit concurrent requests for the same account.
 - **Duplicate data** — saving the same activity twice under two profiles without coordination.
@@ -27,7 +26,7 @@ When multiple OW profiles share the same provider account, the platform must avo
 
 ## Linked Accounts UI
 
-The Connections page shows an amber **"N linked"** chip on any active connection whose `provider_user_id` is shared with at least one other OW profile. Hovering the chip shows a tooltip with shortened UUIDs linking to the other profiles.
+The Connections page shows an amber **"N linked"** chip on any active connection whose `provider_user_id` is shared with at least one other Healine profile. Hovering the chip shows a tooltip with shortened UUIDs linking to the other profiles.
 
 Revoked connections never show the chip — the lookup filters on `status = active` via a partial index (`ix_user_connection_provider_external_id`).
 
@@ -37,14 +36,14 @@ Revoked connections never show the chip — the lookup filters on `status = acti
 
 The key distinction between sync types is **who initiates the data transfer**:
 
-- **Webhook** — the provider pushes data to us. The payload arrives once regardless of how many OW profiles share the account, so there is nothing to deduplicate at the API level. We fan out the single payload to all profiles internally.
+- **Webhook** — the provider pushes data to us. The payload arrives once regardless of how many Healine profiles share the account, so there is nothing to deduplicate at the API level. We fan out the single payload to all profiles internally.
 - **Pull / Backfill** — we call the provider's API. If N profiles triggered the call concurrently we would make N identical API requests, waste quota, and risk rate-limiting. A distributed lock ensures only one profile makes the call; the others receive the data via fan-out after it completes.
 
 ### Webhook push (Garmin live data)
 
 Garmin pushes a single webhook payload for one `userId` (their internal account ID). The platform fans out unconditionally:
 
-1. `get_all_by_provider_user_id("garmin", garmin_user_id)` returns all active OW connections sharing that Garmin account, ordered by `created_at asc` so the oldest profile is always index 0.
+1. `get_all_by_provider_user_id("garmin", garmin_user_id)` returns all active Healine connections sharing that Garmin account, ordered by `created_at asc` so the oldest profile is always index 0.
 2. The activity or wellness data is **parsed once**, then saved independently for every connected profile within the same DB transaction (each profile's insert is wrapped in a savepoint so a duplicate on one profile does not roll back the others).
 3. The **first** connection (index 0) is treated as *primary* and receives a `WEBHOOK` sync status event. All others receive a `LINKED_ACCOUNT` event with `primary_user_id` pointing at the primary profile.
 
@@ -52,7 +51,7 @@ No distributed lock is needed here — Garmin sends the webhook exactly once and
 
 ### Historical backfill (Garmin webhook-chain)
 
-Garmin backfill works by making one API request per data type per time window, then waiting for Garmin to push the result via webhook. Because Garmin prohibits concurrent backfill requests from the same account, only **one** OW profile may run the backfill chain.
+Garmin backfill works by making one API request per data type per time window, then waiting for Garmin to push the result via webhook. Because Garmin prohibits concurrent backfill requests from the same account, only **one** Healine profile may run the backfill chain.
 
 **Primary election** uses a Redis `SET NX` lock keyed by `(provider, provider_user_id, "backfill")`:
 

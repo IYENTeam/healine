@@ -24,7 +24,7 @@ export function CodePreviewCard() {
           </div>
           <div className="text-blue-400">
             const <span className="text-foreground">insight</span> ={' '}
-            <span className="text-purple-400">await</span> openWearables.create(
+            <span className="text-purple-400">await</span> healine.create(
             {'{'}
           </div>
           <div className="pl-4 text-foreground/90">

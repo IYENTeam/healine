@@ -1,6 +1,6 @@
 """Sleep score service.
 
-Exposes three entry points for computing a per-night OW sleep score using the
+Exposes three entry points for computing a per-night Healine sleep score using the
 four-pillar algorithm (duration, stages, consistency, interruptions):
 
 - SleepScoreService.get_sleep_score              - pure calculation; accepts raw sleep parameters

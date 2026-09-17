@@ -30,8 +30,8 @@ MEASURE_TYPE_MAP: dict[int, SeriesType] = {
 }
 
 # A few measures arrive in a different unit than the unified SeriesType. After
-# decoding (value × 10^unit), multiply by this factor to match OW units.
-#   meastype 4 (height): Withings reports metres; OW ``height`` is centimetres.
+# decoding (value × 10^unit), multiply by this factor to match Healine units.
+#   meastype 4 (height): Withings reports metres; Healine ``height`` is centimetres.
 MEASURE_UNIT_FACTOR: dict[int, Decimal] = {
     4: Decimal(100),
 }

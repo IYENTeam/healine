@@ -1,6 +1,6 @@
 # Setting Up Your Development Environment
 
-This guide covers setting up your local development environment for Open Wearables.
+This guide covers setting up your local development environment for Healine.
 
 ## Prerequisites
 
@@ -17,8 +17,8 @@ The easiest way to get started is using Docker Compose:
 
 ```bash
 # Clone the repository
-git clone https://github.com/the-momentum/open-wearables.git
-cd open-wearables
+git clone https://github.com/IYENTeam/healine.git
+cd healine
 
 # Start all services with hot-reload (recommended for development)
 make watch

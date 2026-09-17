@@ -1,20 +1,19 @@
 ---
 title: "Add a Wearable Provider Integration"
 sidebarTitle: "Adding a Provider"
-description: "Add a new fitness data provider to Open Wearables. Covers Strategy, Factory, and Template Method patterns for OAuth, workout, and webhook handlers."
-keywords: ["add wearable provider", "open wearables contribution", "provider integration guide", "wearable api provider"]
-"og:title": "Add a Wearable Provider Integration | Open Wearables"
-"og:description": "Add a new provider to Open Wearables. Covers Strategy, Factory, OAuth, workout, 24/7, and webhook handler patterns."
-"og:url": "https://docs.openwearables.io/dev-guides/how-to-add-new-provider"
+description: "Add a new fitness data provider to Healine. Covers Strategy, Factory, and Template Method patterns for OAuth, workout, and webhook handlers."
+keywords: ["add wearable provider", "healine contribution", "provider integration guide", "wearable api provider"]
+"og:title": "Add a Wearable Provider Integration | Healine"
+"og:description": "Add a new provider to Healine. Covers Strategy, Factory, OAuth, workout, 24/7, and webhook handler patterns."
 "og:type": "article"
-"twitter:title": "Add a Wearable Provider Integration | Open Wearables"
-"twitter:description": "Add a new provider to Open Wearables. Covers Strategy, Factory, OAuth, workout, 24/7, and webhook handler patterns."
+"twitter:title": "Add a Wearable Provider Integration | Healine"
+"twitter:description": "Add a new provider to Healine. Covers Strategy, Factory, OAuth, workout, 24/7, and webhook handler patterns."
 "twitter:card": "summary_large_image"
 ---
 
 # How to Add a New Provider Integration
 
-This guide walks you through the process of adding a new fitness data provider (e.g. Strava, Samsung Health, Xiaomi, WHOOP) to the OpenWearables platform. The architecture uses design patterns like **Strategy**, **Factory**, and **Template Method** to make adding new providers straightforward and consistent.
+This guide walks you through the process of adding a new fitness data provider (e.g. Strava, Samsung Health, Xiaomi, WHOOP) to the Healine platform. The architecture uses design patterns like **Strategy**, **Factory**, and **Template Method** to make adding new providers straightforward and consistent.
 
 ## Architecture Overview
 
@@ -448,7 +447,7 @@ class SuuntoWorkouts(BaseWorkoutsTemplate):
 
 <Steps>  
   <Step title="_normalize_workout()">
-    **Most important!** Convert provider's data format to OpenWearables [unified schema](/architecture/unified-data-model).
+    **Most important!** Convert provider's data format to Healine [unified schema](/architecture/unified-data-model).
   </Step>
   
   <Step title="_extract_dates()">
@@ -479,7 +478,7 @@ Create a mapping file to convert provider-specific workout types to unified type
 Create `backend/app/constants/workout_types/suunto.py`:
 
 ```python
-"""Suunto activity type to OpenWearables unified workout type mapping."""
+"""Suunto activity type to Healine unified workout type mapping."""
 from app.schemas.workout_types import WorkoutType
 
 SUUNTO_WORKOUT_TYPE_MAPPINGS: list[tuple[int, str, WorkoutType]] = [
@@ -858,5 +857,5 @@ Use this checklist to ensure you've completed all steps:
 - [ ] Updated API documentation
 
 <Check>
-Congratulations! You've successfully integrated a new provider into OpenWearables. 🎉
+Congratulations! You've successfully integrated a new provider into Healine. 🎉
 </Check>

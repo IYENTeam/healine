@@ -1,11 +1,11 @@
 {
   "$schema": "https://mintlify.com/docs.json",
   "theme": "mint",
-  "name": "Open Wearables",
+  "name": "Healine",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#0d9488",
+    "light": "#14b8a6",
+    "dark": "#0f766e"
   },
   "favicon": "/favicon.svg",
   "redirects": [
@@ -327,7 +327,7 @@
       "anchors": [
         {
           "anchor": "GitHub",
-          "href": "https://github.com/the-momentum/open-wearables",
+          "href": "https://github.com/IYENTeam/healine",
           "icon": "github"
         },
         {
@@ -344,14 +344,14 @@
     }
   },
   "logo": {
-    "light": "/logo/light.png",
-    "dark": "/logo/dark.png"
+    "light": "/logo/light.svg",
+    "dark": "/logo/dark.svg"
   },
   "navbar": {
     "links": [
       {
         "label": "GitHub",
-        "href": "https://github.com/the-momentum/open-wearables"
+        "href": "https://github.com/IYENTeam/healine"
       }
     ]
   },
@@ -369,8 +369,7 @@
   },
   "footer": {
     "socials": {
-      "github": "https://github.com/the-momentum/open-wearables",
-      "discord": "https://discord.gg/qrcfFnNE6H"
+      "github": "https://github.com/IYENTeam/healine"
     }
   }
 }

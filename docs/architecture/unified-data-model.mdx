@@ -1,17 +1,16 @@
 ---
 title: "Unified Health Data Model"
-description: "Open Wearables normalizes health data into one unified schema. Open algorithms, no black boxes. Covers events, timeseries, device mapping, and entities."
+description: "Healine normalizes health data into one unified schema. Open algorithms, no black boxes. Covers events, timeseries, device mapping, and entities."
 keywords: ["wearable data normalization", "unified health data model", "health data schema", "health data aggregation"]
-"og:title": "Wearable Data Normalization | Open Wearables Unified Data Model"
+"og:title": "Wearable Data Normalization | Healine Unified Data Model"
 "og:description": "Normalizes health data from all providers into one schema. Open algorithms, no black boxes. Events, time series, and device mapping."
-"og:url": "https://docs.openwearables.io/architecture/unified-data-model"
 "og:type": "article"
-"twitter:title": "Wearable Data Normalization | Open Wearables Unified Data Model"
+"twitter:title": "Wearable Data Normalization | Healine Unified Data Model"
 "twitter:description": "Normalizes health data from all providers into one schema. Open algorithms, no black boxes. Events, time series, and device mapping."
 "twitter:card": "summary_large_image"
 ---
 
-The Open Wearables project aims to unify health monitoring data - to do that, a stable, optimised data architecture is paramount. This problem is not trivial, as we face raw data served in heterogeneous formats, with potential erroneous observations, noise interfering with the recorded values and other such issues. On top of that, the potential volume of data is a problem on its own, and without proper structure optimization will be unacceptably memory taxing, calculation intensive, if not both.
+The Healine project aims to unify health monitoring data - to do that, a stable, optimised data architecture is paramount. This problem is not trivial, as we face raw data served in heterogeneous formats, with potential erroneous observations, noise interfering with the recorded values and other such issues. On top of that, the potential volume of data is a problem on its own, and without proper structure optimization will be unacceptably memory taxing, calculation intensive, if not both.
 
 ## Technical overview
 
@@ -56,22 +55,22 @@ erDiagram
     User ||--o| PersonalRecord : "has"
     User ||--o{ UserConnection : "has"
     User ||--o{ ExternalDeviceMapping : "has"
-    
+
     ExternalDeviceMapping ||--o{ EventRecord : "produces"
     ExternalDeviceMapping ||--o{ DataPointSeries : "produces"
-    
+
     EventRecord ||--o| EventRecordDetail : "has"
     EventRecordDetail ||--o| SleepDetails : "polymorphic"
     EventRecordDetail ||--o| WorkoutDetails : "polymorphic"
-    
+
     DataPointSeries }o--|| SeriesTypeDefinition : "references"
-    
+
     Developer ||--o{ Application : "owns"
     Developer ||--o{ ApiKey : "creates"
     Developer ||--o{ Invitation : "sends"
-    
+
     Device ||--o{ DeviceSoftware : "has"
-    
+
     User {
         uuid id PK
         timestamp created_at
@@ -80,7 +79,7 @@ erDiagram
         string email
         string external_user_id
     }
-    
+
     PersonalRecord {
         uuid id PK
         uuid user_id FK
@@ -88,7 +87,7 @@ erDiagram
         bool sex
         string gender
     }
-    
+
     UserConnection {
         uuid id PK
         uuid user_id FK
@@ -99,14 +98,14 @@ erDiagram
         timestamp token_expires_at
         string status
     }
-    
+
     ExternalDeviceMapping {
         uuid id PK
         uuid user_id FK
         string provider_name
         string device_id
     }
-    
+
     EventRecord {
         uuid id PK
         uuid external_device_mapping_id FK
@@ -118,12 +117,12 @@ erDiagram
         timestamp start_datetime
         timestamp end_datetime
     }
-    
+
     EventRecordDetail {
         uuid record_id PK
         string detail_type
     }
-    
+
     SleepDetails {
         uuid record_id PK
         int sleep_total_duration_minutes
@@ -135,7 +134,7 @@ erDiagram
         int sleep_awake_minutes
         bool is_nap
     }
-    
+
     WorkoutDetails {
         uuid record_id PK
         int heart_rate_min
@@ -149,7 +148,7 @@ erDiagram
         int moving_time_seconds
         decimal total_elevation_gain
     }
-    
+
     DataPointSeries {
         uuid id PK
         uuid external_device_mapping_id FK
@@ -158,13 +157,13 @@ erDiagram
         timestamp recorded_at
         decimal value
     }
-    
+
     SeriesTypeDefinition {
         int id PK
         string code
         string unit
     }
-    
+
     Developer {
         uuid id PK
         timestamp created_at
@@ -174,7 +173,7 @@ erDiagram
         string email
         string hashed_password
     }
-    
+
     Application {
         uuid id PK
         uuid developer_id FK
@@ -184,7 +183,7 @@ erDiagram
         timestamp created_at
         timestamp updated_at
     }
-    
+
     ApiKey {
         uuid id PK
         uuid created_by FK
@@ -193,7 +192,7 @@ erDiagram
         string name
         timestamp created_at
     }
-    
+
     Invitation {
         uuid id PK
         uuid invited_by_id FK
@@ -203,20 +202,20 @@ erDiagram
         timestamp expires_at
         timestamp created_at
     }
-    
+
     Device {
         uuid id PK
         string serial_number
         string provider_name
         string name
     }
-    
+
     DeviceSoftware {
         uuid id PK
         uuid device_id FK
         string version
     }
-    
+
     ProviderSetting {
         string provider PK
         bool is_enabled
@@ -230,15 +229,15 @@ The current iteration is fully built using python native methods - utilising SQL
 
 ![Data usage](../images/data-usage.png)
 
-The proposed model fits with the wider open wearables environment and use cases - it serves as a strong foundation layer for future data processing, computation of complex metrics, and what is at heart of the project - ease of access to the insights and patterns within the stored data. 
-This data is designed to be served via multiple channels, accessible through dedicated services serving this data as either classical API endpoints, or new access methods such as MCP servers and AI agents. 
+The proposed model fits with the wider Healine environment and use cases - it serves as a strong foundation layer for future data processing, computation of complex metrics, and what is at heart of the project - ease of access to the insights and patterns within the stored data.
+This data is designed to be served via multiple channels, accessible through dedicated services serving this data as either classical API endpoints, or new access methods such as MCP servers and AI agents.
 
 ## Roadmap
 
 ![Data roadmap](../images/data-roadmap.png)
 
-The presented unified data model is a first iteration of the underlying Open Wearables data structure - we fully intend to expand upon it, and introduce new features. Some of the planned stages of development are as follows:
-1. **Base model architecture (starting point)** - The base data model discussed above, provided with the first release of the Open Wearables platform
+The presented unified data model is a first iteration of the underlying Healine data structure - we fully intend to expand upon it, and introduce new features. Some of the planned stages of development are as follows:
+1. **Base model architecture (starting point)** - The base data model discussed above, provided with the first release of the Healine platform
 2. **Wide data support** - consists of extending the existing data structures with wide support for both events and series existing in the wider wearables ecosystem
 3. **Complex metrics calculation** - assumes extension of the currently existing base types of time series with complex metrics, covering both multivariate datapoints and derivative values, calculated from other datapoints. Here, reaching a compromise between incoming, registered data (come of the complex types are widely supported and will be received as raw data), and our internal calculation - the goal will be to validate and use the most trusted ones, according to either user defined priority configuration, or calculated trust scores.
 4. **Data model expansion for time series** - at this stage, we assume that the time series shared model will need to be revisited. As stated in the initial description, the current approach is a stopgap, potentially sacrificing the storage optimisation - as our stated goal is to avoid unnecessary memory bloat, this will need to be resolved, using insight from the earlier stages and potential feedback. The presented structure is one of the possibilities, splitting the series according to data types, representing a compromise between classic data warehousing and relational databases. Here we can also think about separating the time series data describing the user body states into separate, snapshot-like records.

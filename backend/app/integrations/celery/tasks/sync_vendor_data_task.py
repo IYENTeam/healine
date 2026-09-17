@@ -206,7 +206,7 @@ def sync_vendor_data(
                 )
                 sync_scope = SyncScope.HISTORICAL if is_historical else SyncScope.LIVE
 
-                # If this provider account is shared across OW profiles, only one
+                # If this provider account is shared across Healine profiles, only one
                 # should make the API call at a time.  The first to acquire the lock
                 # is primary; concurrent duplicates skip and wait for the fan-out.
                 # Fan-out tasks (_skip_linked_fan_out=True) bypass this check entirely.
@@ -499,7 +499,7 @@ def sync_vendor_data(
                         release_primary(
                             provider_name, connection.provider_user_id, user_uuid, shared_token, scope="pull"
                         )
-                        # Fan-out: trigger sync for every other OW profile sharing this
+                        # Fan-out: trigger sync for every other Healine profile sharing this
                         # provider account so they receive the same data.
                         linked_connections = user_connection_repo.get_all_by_provider_user_id(
                             db, provider_name, connection.provider_user_id

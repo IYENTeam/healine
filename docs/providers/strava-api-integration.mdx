@@ -2,24 +2,23 @@
 title: "Strava API Integration"
 description: "Connect Strava via OAuth 2.0 for activity sync. Webhooks for real-time events plus polling for historical data."
 keywords: ["strava api integration", "strava oauth", "strava activity data", "strava api"]
-"og:title": "Strava API Integration | Open Wearables"
+"og:title": "Strava API Integration | Healine"
 "og:description": "Connect Strava via OAuth 2.0. Syncs activities. Webhooks plus polling for historical data."
-"og:url": "https://docs.openwearables.io/providers/strava-api-integration"
 "og:type": "article"
-"twitter:title": "Strava API Integration | Open Wearables"
+"twitter:title": "Strava API Integration | Healine"
 "twitter:description": "Connect Strava via OAuth 2.0. Syncs activities. Webhooks plus polling for historical data."
 "twitter:card": "summary_large_image"
 ---
 
 <Note>
-**Need help with your Strava integration?** Pop into our [Discord](https://discord.gg/qrcfFnNE6H) if you have questions or want to discover how Open Wearables can solve your problems.
+**Need help with your Strava integration?** Pop into our [Discord](https://discord.gg/qrcfFnNE6H) if you have questions or want to discover how Healine can solve your problems.
 </Note>
 
 ## Overview
 
 Strava provides access to activity/workout data through their API. The integration supports real-time webhook notifications for new activities as well as historical activity data via polling.
 
-Each Open Wearables user can connect their own Strava account. Strava's Standard Tier allows up to **10 connected athletes** — upgradeable directly from your [API Settings Dashboard](https://www.strava.com/settings/api) without formal review. For more than 10 athletes, apply for Extended Access Tier.
+Each Healine user can connect their own Strava account. Strava's Standard Tier allows up to **10 connected athletes** — upgradeable directly from your [API Settings Dashboard](https://www.strava.com/settings/api) without formal review. For more than 10 athletes, apply for Extended Access Tier.
 
 <Warning>
 **Strava subscription required (as of June 2026).** A Strava subscription is now required to access the API as a Standard Tier developer. If you registered before June 1, 2026 you have until June 30, 2026 to subscribe. Extended Access Tier developers are not affected.
@@ -90,7 +89,7 @@ Self-upgrade to Standard Tier (up to 10 athletes) directly from your [API Settin
     </Warning>
   </Step>
 
-  <Step title="Configure credentials in Open Wearables">
+  <Step title="Configure credentials in Healine">
     Add the following to your `.env` file:
 
 ```bash
@@ -127,7 +126,7 @@ curl -X POST https://www.strava.com/api/v3/push_subscriptions \
   -F verify_token=YOUR_WEBHOOK_VERIFY_TOKEN
 ```
 
-    When Strava receives this request, it will send a GET request to your `callback_url` with a `hub.verify_token` parameter. Open Wearables will validate the token against your `STRAVA_WEBHOOK_VERIFY_TOKEN` and echo back the challenge to confirm the subscription.
+    When Strava receives this request, it will send a GET request to your `callback_url` with a `hub.verify_token` parameter. Healine will validate the token against your `STRAVA_WEBHOOK_VERIFY_TOKEN` and echo back the challenge to confirm the subscription.
 
     <Warning>
     The `callback_url` must be publicly accessible over HTTPS. For local development, use a tunneling tool like [ngrok](https://ngrok.com/) to expose your local server.
@@ -153,10 +152,10 @@ curl -X DELETE "https://www.strava.com/api/v3/push_subscriptions/SUBSCRIPTION_ID
   <Step title="Verify the integration">
     Once everything is configured:
 
-    1. Start your Open Wearables instance
+    1. Start your Healine instance
     2. Connect a Strava account through the OAuth flow
     3. Create or record an activity on Strava
-    4. The webhook should deliver the event and Open Wearables will fetch and store the full activity data
+    4. The webhook should deliver the event and Healine will fetch and store the full activity data
 
     You can check the webhook health endpoint at:
     ```
@@ -179,7 +178,7 @@ The default scope `activity:read_all,profile:read_all` is recommended for full a
 
 <CardGroup cols={2}>
   <Card title="API Reference" icon="terminal" href="/api-reference/introduction">
-    Explore the Open Wearables API endpoints.
+    Explore the Healine API endpoints.
   </Card>
   <Card title="Architecture" icon="diagram" href="/architecture/system-overview">
     Understand the overall system architecture.
@@ -191,7 +190,7 @@ The default scope `activity:read_all,profile:read_all` is recommended for full a
 <Note>
 **Need Help?**
 - Join our [Discord](https://discord.gg/qrcfFnNE6H) and ask a question.
-- Check [GitHub Discussions](https://github.com/the-momentum/open-wearables/discussions).
+- Check [Healine issues](https://github.com/IYENTeam/healine/issues).
 - Check the [Strava API Documentation](https://developers.strava.com/docs/reference/).
 - Check the [Strava Webhook Documentation](https://developers.strava.com/docs/webhooks/).
 </Note>

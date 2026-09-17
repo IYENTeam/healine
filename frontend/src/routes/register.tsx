@@ -4,13 +4,13 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useAuth } from '@/hooks/use-auth';
 import { getCopyrightText } from '@/lib/constants/app';
+import { BrandLogo } from '@/components/common/brand-logo';
 import { isAuthenticated } from '@/lib/auth/session';
 import {
   registerSchema,
   type RegisterFormData,
 } from '@/lib/validation/auth.schemas';
 import {
-  Activity,
   ArrowRight,
   Mail,
   Eye,
@@ -63,14 +63,7 @@ function RegisterPage() {
         {/* Left: Form */}
         <div className="flex flex-col justify-between p-8 sm:p-12 border-b lg:border-b-0 lg:border-r border-zinc-900 bg-black/90">
           {/* Logo */}
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 bg-white rounded flex items-center justify-center">
-              <Activity className="text-black w-4 h-4" />
-            </div>
-            <span className="text-sm font-medium text-white tracking-tight uppercase">
-              Open Wearables
-            </span>
-          </div>
+          <BrandLogo />
 
           {/* Form */}
           <div className="w-full max-w-sm mx-auto space-y-6 my-auto py-8">
@@ -79,7 +72,7 @@ function RegisterPage() {
                 Create account
               </h1>
               <p className="text-sm text-zinc-500">
-                Sign up to start building with Open Wearables
+                Sign up to start building with Healine
               </p>
             </div>
 

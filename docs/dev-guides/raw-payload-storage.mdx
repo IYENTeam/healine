@@ -1,12 +1,11 @@
 ---
 title: "Raw Payload Storage"
 description: "Capture raw JSON payloads from wearable providers before processing. Useful for debugging issues, testing ingestion changes, and reproducing parsing bugs."
-keywords: ["raw payload storage wearables", "wearable data debug", "health api payload capture", "open wearables debug"]
-"og:title": "Raw Payload Storage | Open Wearables Debug Tool"
+keywords: ["raw payload storage wearables", "wearable data debug", "health api payload capture", "healine debug"]
+"og:title": "Raw Payload Storage | Healine Debug Tool"
 "og:description": "Capture raw JSON payloads from providers for debugging, testing ingestion changes, and reproducing parsing bugs locally."
-"og:url": "https://docs.openwearables.io/dev-guides/raw-payload-storage"
 "og:type": "article"
-"twitter:title": "Raw Payload Storage | Open Wearables Debug Tool"
+"twitter:title": "Raw Payload Storage | Healine Debug Tool"
 "twitter:description": "Capture raw JSON payloads from providers for debugging, testing ingestion changes, and reproducing parsing bugs locally."
 "twitter:card": "summary_large_image"
 ---
@@ -182,9 +181,9 @@ This covers archival only. Under `SDK_PAYLOAD_S3_OFFLOAD` the upload is the payl
 
     ```bash
     docker run -d \
-      --name minio-open-wearables \
+      --name minio-healine \
       --hostname minio \
-      --network open-wearables_default \
+      --network healine_default \
       -p 9002:9000 -p 9003:9001 \
       -e MINIO_ROOT_USER=minioadmin \
       -e MINIO_ROOT_PASSWORD=minioadmin \
@@ -192,14 +191,14 @@ This covers archival only. Under `SDK_PAYLOAD_S3_OFFLOAD` the upload is the payl
     ```
 
     <Warning>
-      Use `--hostname minio` to register a clean DNS name in the Docker network. Boto3 rejects hostnames with special characters (e.g. double underscores), so container names like `minio__open-wearables` won't work as endpoint URLs.
+      Use `--hostname minio` to register a clean DNS name in the Docker network. Boto3 rejects hostnames with special characters (e.g. double underscores), so container names like `minio__healine` won't work as endpoint URLs.
     </Warning>
 
     **2. Create the bucket** - open the MinIO Console at [http://localhost:9003](http://localhost:9003) (login `minioadmin` / `minioadmin`) and create a bucket called `raw-payloads`, or use the CLI:
 
     ```bash
-    docker exec minio-open-wearables mc alias set local http://localhost:9000 minioadmin minioadmin
-    docker exec minio-open-wearables mc mb local/raw-payloads
+    docker exec minio-healine mc alias set local http://localhost:9000 minioadmin minioadmin
+    docker exec minio-healine mc mb local/raw-payloads
     ```
 
     **3. Configure env vars** in `backend/config/.env`:
@@ -219,7 +218,7 @@ This covers archival only. Under `SDK_PAYLOAD_S3_OFFLOAD` the upload is the payl
     ```bash
     RAW_PAYLOAD_STORAGE=s3
     RAW_PAYLOAD_S3_BUCKET=mycompany-raw-payloads
-    RAW_PAYLOAD_S3_PREFIX=open-wearables
+    RAW_PAYLOAD_S3_PREFIX=healine
     RAW_PAYLOAD_MAX_SIZE_BYTES=10485760
 
     # AWS credentials (if not already configured)
@@ -268,7 +267,7 @@ Use `--target-user-id` to send one user's payloads to a different user account:
 uv run --with boto3,httpx python scripts/replay_raw_payloads.py \
     --user-id <source-uuid> \
     --target-user-id <destination-uuid> \
-    --api-url https://api.openwearables.io \
+    --api-url http://localhost:8000 \
     --api-key sk-...
 ```
 

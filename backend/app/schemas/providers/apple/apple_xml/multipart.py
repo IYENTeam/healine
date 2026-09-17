@@ -2,7 +2,7 @@
 
 S3's protocol limits remain code constants because they are interoperability
 invariants: parts are 5 MiB-5 GiB (the final part may be smaller), with at most
-10,000 parts per upload. Open Wearables separately caps Apple XML uploads at the
+10,000 parts per upload. Healine separately caps Apple XML uploads at the
 shared ``MAX_FILE_SIZE`` product limit.
 """
 

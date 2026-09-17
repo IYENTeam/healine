@@ -1,4 +1,4 @@
-"""Open Wearables MCP Server - Main entry point."""
+"""Healine MCP Server - Main entry point."""
 
 import logging
 from datetime import date
@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 # Create FastMCP server instance
 mcp = FastMCP(
-    "open-wearables",
+    "healine",
     instructions=f"""
     Today's date is {date.today().isoformat()}.
 
@@ -125,7 +125,7 @@ mcp.mount(menstrual_cycles_router)
 # Mount prompts
 mcp.mount(prompts_router)
 
-logger.info(f"Open Wearables MCP server initialized. API URL: {settings.open_wearables_api_url}")
+logger.info(f"Healine MCP server initialized. API URL: {settings.open_wearables_api_url}")
 
 
 def main() -> None:

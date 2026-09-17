@@ -1,6 +1,6 @@
 # Backend
 
-FastAPI backend for the Open Wearables platform.
+FastAPI backend for the Healine platform.
 
 ## Requirements
 

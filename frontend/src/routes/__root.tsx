@@ -11,6 +11,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from '@/lib/query/client';
 import { runtimeConfigScript } from '@/lib/api/runtime-config';
 import { Toaster } from '@/components/ui/sonner';
+import { APP_NAME, APP_DESCRIPTION } from '@/lib/constants/app';
 
 import '../styles.css';
 
@@ -25,15 +26,16 @@ export const Route = createRootRoute({
         content: 'width=device-width, initial-scale=1',
       },
       {
-        title: 'Open Wearables Platform',
+        title: APP_NAME,
       },
       {
         name: 'description',
-        content:
-          'Unified API for wearable device data and AI-powered health insights',
+        content: APP_DESCRIPTION,
       },
     ],
     links: [
+      { rel: 'manifest', href: '/manifest.json' },
+      { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
       // Google Fonts - Inter
       {
         rel: 'preconnect',

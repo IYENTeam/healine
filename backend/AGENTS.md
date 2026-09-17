@@ -429,7 +429,7 @@ curl -X POST http://localhost:8000/api/v1/endpoint -H "Content-Type: application
 ### Database Verification
 ```bash
 # Connect to PostgreSQL
-docker exec -it postgres__open-wearables psql -U open-wearables -d open-wearables
+docker exec -it postgres__healine psql -U healine -d healine
 
 # Example queries
 SELECT * FROM table_name LIMIT 5;

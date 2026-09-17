@@ -1,12 +1,11 @@
 ---
 title: "AWS S3 Setup for Apple Health XML Imports"
 description: "Configure an S3-compatible bucket (AWS S3 or self-hosted) for large Apple Health XML uploads. Client-driven completion by default, with optional SNS-triggered processing. Covers the required resources."
-keywords: ["aws s3 apple health import", "aws sns health data", "open wearables aws setup", "s3 presigned url health xml"]
-"og:title": "AWS S3 Setup for Apple Health XML Imports | Open Wearables"
+keywords: ["aws s3 apple health import", "aws sns health data", "healine aws setup", "s3 presigned url health xml"]
+"og:title": "AWS S3 Setup for Apple Health XML Imports | Healine"
 "og:description": "Configure an S3-compatible bucket for large Apple Health XML uploads. Client-driven completion by default, optional SNS mode. Covers the required resources."
-"og:url": "https://docs.openwearables.io/dev-guides/aws-setup"
 "og:type": "article"
-"twitter:title": "AWS S3 Setup for Apple Health XML Imports | Open Wearables"
+"twitter:title": "AWS S3 Setup for Apple Health XML Imports | Healine"
 "twitter:description": "Configure an S3-compatible bucket for large Apple Health XML uploads. Client-driven completion by default, optional SNS mode. Covers the required resources."
 "twitter:card": "summary_large_image"
 ---
@@ -38,7 +37,7 @@ Large Apple Health XML exports upload directly to object storage (any S3-compati
   <Step title="Create Bucket">
     Click **Create bucket** and configure:
     
-    - **Bucket name**: Choose a unique name (e.g., `open-wearables-xml`)
+    - **Bucket name**: Choose a unique name (e.g., `healine-xml`)
     - **AWS Region**: Select your preferred region (e.g., `eu-north-1`)
     - **Block Public Access**: Keep all boxes checked (recommended)
     - **Bucket Versioning**: Disabled (optional)
@@ -53,7 +52,7 @@ Large Apple Health XML exports upload directly to object storage (any S3-compati
 <Accordion title="Using AWS CLI">
 ```bash
 aws s3api create-bucket \
-  --bucket open-wearables-xml \
+  --bucket healine-xml \
   --region eu-north-1 \
   --create-bucket-configuration LocationConstraint=eu-north-1
 ```
@@ -84,7 +83,7 @@ response header:
 <Accordion title="Using AWS CLI">
 ```bash
 aws s3api put-bucket-cors \
-  --bucket open-wearables-xml \
+  --bucket healine-xml \
   --cors-configuration file://cors.json
 ```
 </Accordion>
@@ -171,7 +170,7 @@ The SNS topic needs permission to receive publish events from S3.
   "Resource": "arn:aws:sns:eu-north-1:123456789012:owear",
   "Condition": {
     "ArnLike": {
-      "aws:SourceArn": "arn:aws:s3:::open-wearables-xml"
+      "aws:SourceArn": "arn:aws:s3:::healine-xml"
     }
   }
 }
@@ -184,7 +183,7 @@ The SNS topic needs permission to receive publish events from S3.
 </Steps>
 
 <Warning>
-  Replace `123456789012` with your AWS Account ID, `open-wearables-xml` with your bucket name, and `owear` with your topic name.
+  Replace `123456789012` with your AWS Account ID, `healine-xml` with your bucket name, and `owear` with your topic name.
 </Warning>
 
 ## Step 4: Add S3 Event Notification (SNS mode only)
@@ -233,7 +232,7 @@ cat > notification.json <<EOF
 EOF
 
 aws s3api put-bucket-notification-configuration \
-  --bucket open-wearables-xml \
+  --bucket healine-xml \
   --notification-configuration file://notification.json
 ```
 </Accordion>
@@ -276,7 +275,7 @@ Add the AWS configuration to your `.env` file:
 
 ```bash
 # AWS S3 Configuration
-AWS_BUCKET_NAME=open-wearables-xml
+AWS_BUCKET_NAME=healine-xml
 AWS_REGION=eu-north-1
 AWS_ACCESS_KEY_ID=your-access-key-id
 AWS_SECRET_ACCESS_KEY=your-secret-access-key
@@ -318,7 +317,7 @@ rest to tune upload behavior.
 
 1. Go to [IAM Console](https://console.aws.amazon.com/iam/)
 2. Click **Users** → **Add users**
-3. User name: `open-wearables-app`
+3. User name: `healine-app`
 4. Select **Access key - Programmatic access**
 5. Click **Next: Permissions**
 6. Attach policies:

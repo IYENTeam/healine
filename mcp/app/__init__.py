@@ -1,1 +1,1 @@
-# Open Wearables MCP Server
+# Healine MCP Server

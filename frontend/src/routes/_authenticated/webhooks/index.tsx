@@ -65,7 +65,7 @@ function WebhooksPage() {
             Set <code>OUTGOING_WEBHOOKS_ENABLED=true</code> in the backend
             environment to enable outgoing webhook delivery. See the{' '}
             <a
-              href="https://openwearables.io/docs/api-reference/guides/webhooks"
+              href="https://github.com/IYENTeam/healine/blob/main/docs/api-reference/guides/webhooks.mdx"
               target="_blank"
               rel="noopener noreferrer"
               className="text-primary underline underline-offset-2"
@@ -121,7 +121,7 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
           Create your first webhook
         </Button>
         <a
-          href="https://openwearables.io/docs"
+          href="https://github.com/IYENTeam/healine/tree/main/docs"
           target="_blank"
           rel="noopener noreferrer"
         >

@@ -1,10 +1,10 @@
 # Adding a New Provider
 
-This guide covers how to add support for a new wearable device provider to Open Wearables.
+This guide covers how to add support for a new wearable device provider to Healine.
 
 ## Overview
 
-Open Wearables uses a provider strategy pattern to support multiple wearable device integrations. Each provider implements OAuth authentication and data fetching for their specific API.
+Healine uses a provider strategy pattern to support multiple wearable device integrations. Each provider implements OAuth authentication and data fetching for their specific API.
 
 ## Comprehensive Guide
 

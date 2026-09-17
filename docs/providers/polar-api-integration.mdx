@@ -2,17 +2,16 @@
 title: "Polar API Integration"
 description: "Connect Polar devices via AccessLink API with OAuth 2.0. Syncs workouts, sleep, daily activity, continuous HR, Nightly Recharge, and cardio load. Requires Client ID and Secret from Polar AccessLink Admin."
 keywords: ["polar api", "polar api integration", "polar health data", "polar fitness api"]
-"og:title": "Polar API Integration | Open Wearables"
+"og:title": "Polar API Integration | Healine"
 "og:description": "Connect Polar via AccessLink API with OAuth 2.0. Syncs workouts, sleep, daily activity, continuous HR, Nightly Recharge, and cardio load. Free Polar Flow account required."
-"og:url": "https://docs.openwearables.io/providers/polar-api-integration"
 "og:type": "article"
-"twitter:title": "Polar API Integration | Open Wearables"
+"twitter:title": "Polar API Integration | Healine"
 "twitter:description": "Connect Polar via AccessLink API with OAuth 2.0. Syncs workouts, sleep, daily activity, continuous HR, Nightly Recharge, and cardio load. Free Polar Flow account required."
 "twitter:card": "summary_large_image"
 ---
 
 <Note>
-**Need help with your Polar integration?** Pop into our [Discord](https://discord.gg/qrcfFnNE6H) if you have questions or want to discover how Open Wearables can solve your problems.
+**Need help with your Polar integration?** Pop into our [Discord](https://discord.gg/qrcfFnNE6H) if you have questions or want to discover how Healine can solve your problems.
 </Note>
 
 ## Overview
@@ -40,9 +39,9 @@ Polar provides access to exercise, daily activity, sleep, and heart rate data fr
 
 | Method | Description |
 |--------|-------------|
-| **Polling (pull) — Exercises** | Open Wearables fetches exercises via the AccessLink v3 API (`/v3/exercises`). Returns all exercises available in Polar Flow for the connected user. |
+| **Polling (pull) — Exercises** | Healine fetches exercises via the AccessLink v3 API (`/v3/exercises`). Returns all exercises available in Polar Flow for the connected user. |
 | **Polling (pull) — 24/7 data** | Sleep, daily activity, continuous HR, Nightly Recharge, cardio load, and Elixir/Sleepwise metrics are fetched via range endpoints covering the last 90 days. |
-| **Webhooks (push)** | Polar sends a lightweight notification on each event (exercise, sleep, activity, etc.). Open Wearables acknowledges immediately and enqueues a targeted sync for the affected data type. |
+| **Webhooks (push)** | Polar sends a lightweight notification on each event (exercise, sleep, activity, etc.). Healine acknowledges immediately and enqueues a targeted sync for the affected data type. |
 
 <Note>
 Webhook delivery requires a registered webhook subscription and `POLAR_WEBHOOK_SIGNATURE_SECRET` set in your environment. See the configuration step below.
@@ -77,7 +76,7 @@ Webhook delivery requires a registered webhook subscription and `POLAR_WEBHOOK_S
     - Accept the AccessLink Limited License Agreement
 
     **2. Application Information**
-    - **Application Name**: Your app name (e.g. "Open Wearables")
+    - **Application Name**: Your app name (e.g. "Healine")
     - **Business contact (email)**: Your contact email
     - **Description**: Brief description of your application
     - **Application Web site**: Your app's website (optional)
@@ -99,7 +98,7 @@ Webhook delivery requires a registered webhook subscription and `POLAR_WEBHOOK_S
     </Warning>
   </Step>
 
-  <Step title="Configure credentials in Open Wearables">
+  <Step title="Configure credentials in Healine">
     Add the following to your `.env` file:
 
 ```bash
@@ -126,7 +125,7 @@ POLAR_WEBHOOK_SIGNATURE_SECRET=
   </Step>
 
   <Step title="Connect a user via OAuth">
-    With credentials configured and your Open Wearables instance running, initiate the OAuth flow to connect a user's Polar account.
+    With credentials configured and your Healine instance running, initiate the OAuth flow to connect a user's Polar account.
 
     **1. Get the authorization URL:**
 
@@ -145,7 +144,7 @@ POLAR_WEBHOOK_SIGNATURE_SECRET=
 
     **2. Redirect the user** to the `authorization_url`. They will log in to Polar Flow and authorize your app.
 
-    **3. Polar redirects back** to the callback URI configured in your `.env` (`POLAR_REDIRECT_URI`). Open Wearables automatically exchanges the authorization code for access tokens and registers the user with the Polar API.
+    **3. Polar redirects back** to the callback URI configured in your `.env` (`POLAR_REDIRECT_URI`). Healine automatically exchanges the authorization code for access tokens and registers the user with the Polar API.
 
     **4. Verify the connection** was created:
 
@@ -176,7 +175,7 @@ POLAR_WEBHOOK_SIGNATURE_SECRET=
   </Step>
 
   <Step title="Verify the integration">
-    Once data has synced, fetch it via the Open Wearables API:
+    Once data has synced, fetch it via the Healine API:
 
     ```bash
     # Fetch workouts
@@ -219,7 +218,7 @@ Rate limit headers are included in every response: `RateLimit-Usage`, `RateLimit
 
 <CardGroup cols={2}>
   <Card title="API Reference" icon="terminal" href="/api-reference/introduction">
-    Explore the Open Wearables API endpoints.
+    Explore the Healine API endpoints.
   </Card>
   <Card title="Architecture" icon="diagram" href="/architecture/system-overview">
     Understand the overall system architecture.
@@ -231,7 +230,7 @@ Rate limit headers are included in every response: `RateLimit-Usage`, `RateLimit
 <Note>
 **Need Help?**
 - Join our [Discord](https://discord.gg/qrcfFnNE6H) and ask a question.
-- Check [GitHub Discussions](https://github.com/the-momentum/open-wearables/discussions).
+- Check [Healine issues](https://github.com/IYENTeam/healine/issues).
 - Check the [Polar AccessLink API Documentation](https://www.polar.com/accesslink-api).
 - Contact Polar developer support: b2bhelpdesk@polar.com
 </Note>

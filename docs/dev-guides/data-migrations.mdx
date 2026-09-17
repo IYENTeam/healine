@@ -2,10 +2,9 @@
 title: "Data Migrations"
 sidebarTitle: "Data Migrations"
 description: "One-off scripts for backfilling or correcting data in the database. Some run automatically on startup for a limited time; all can be run manually."
-keywords: ["data migration", "backfill", "database", "open wearables"]
-"og:title": "Data Migrations | Open Wearables"
+keywords: ["data migration", "backfill", "database", "healine"]
+"og:title": "Data Migrations | Healine"
 "og:description": "One-off scripts for backfilling or correcting data in the database."
-"og:url": "https://docs.openwearables.io/dev-guides/data-migrations"
 "og:type": "article"
 ---
 
@@ -21,7 +20,7 @@ Recent migrations are wired into the container startup script (`backend/scripts/
 
 This automatic execution is **temporary**. Each entry in `app.sh` is gated by a `TODO: Remove this after ~<date>` comment and is deleted once existing deployments have had time to upgrade. After that point the script is no longer invoked on startup.
 
-The practical consequence: if you upgrade Open Wearables long after a migration shipped, the corresponding script may already have been removed from `app.sh` and **will not run automatically**. In that case, run it manually (see below). Scripts that were never added to `app.sh` must always be run manually.
+The practical consequence: if you upgrade Healine long after a migration shipped, the corresponding script may already have been removed from `app.sh` and **will not run automatically**. In that case, run it manually (see below). Scripts that were never added to `app.sh` must always be run manually.
 
 ## Prerequisites
 

@@ -1,6 +1,6 @@
 # Testing
 
-This guide covers how to run tests and write new tests for Open Wearables.
+This guide covers how to run tests and write new tests for Healine.
 
 ## Prerequisites
 

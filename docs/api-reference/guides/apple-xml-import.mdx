@@ -2,11 +2,10 @@
 title: "Import Apple Health XML Export"
 description: "Import Apple Health data exports via XML. Direct upload for small files, S3 presigned URL for large exports. Requires Bearer token or API key."
 keywords: ["apple health xml import", "apple health export api", "healthkit xml upload", "apple health data import"]
-"og:title": "Import Apple Health XML Export | Open Wearables"
+"og:title": "Import Apple Health XML Export | Healine"
 "og:description": "Import Apple Health XML exports. Direct upload for small files, S3 presigned URL for large exports. API key auth required."
-"og:url": "https://docs.openwearables.io/api-reference/guides/apple-xml-import"
 "og:type": "article"
-"twitter:title": "Import Apple Health XML Export | Open Wearables"
+"twitter:title": "Import Apple Health XML Export | Healine"
 "twitter:description": "Import Apple Health XML exports. Direct upload for small files, S3 presigned URL for large exports. API key auth required."
 "twitter:card": "summary_large_image"
 ---
@@ -282,7 +281,7 @@ it makes a best-effort abort request so uploaded parts do not linger.
 
 ```python upload_xml_multipart.py
 #!/usr/bin/env python3
-"""Upload an Apple Health export with the Open Wearables multipart API."""
+"""Upload an Apple Health export with the Healine multipart API."""
 
 import math
 import os
@@ -398,7 +397,7 @@ Expected completion response in the default `client` mode:
 {
   "status": "processing",
   "key": "user-id/raw/unique-export.xml",
-  "bucket": "open-wearables",
+  "bucket": "healine",
   "task_id": "8d603f54-73e9-454e-bb31-4a3bd12a3f37"
 }
 ```
@@ -536,7 +535,7 @@ as retryable with exponential backoff.
     ```python upload_xml_s3.py
     #!/usr/bin/env python3
     """
-    Upload Apple Health XML export to Open Wearables using S3.
+    Upload Apple Health XML export to Healine using S3.
 
     Usage: python upload_xml_s3.py export.xml
     """
@@ -654,7 +653,7 @@ as retryable with exponential backoff.
     ```python upload_xml_direct.py
     #!/usr/bin/env python3
     """
-    Upload Apple Health XML export directly to Open Wearables API.
+    Upload Apple Health XML export directly to Healine API.
 
     Usage: python upload_xml_direct.py export.xml
     """

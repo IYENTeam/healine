@@ -15,7 +15,7 @@ from app.utils.structured_logging import log_structured
 
 logger = getLogger(__name__)
 
-# Find all non-nap sleep sessions that have no corresponding OW sleep score.
+# Find all non-nap sleep sessions that have no corresponding Healine sleep score.
 # The match is on event_record_id (direct FK) so each session gets exactly one
 # score regardless of timezone-induced date collisions. wake_date (local end
 # date) is used as the lookup key for get_sleep_scores_for_records and for
@@ -49,7 +49,7 @@ _MISSING_SCORES_QUERY = text("""
 
 @shared_task
 def fill_missing_sleep_scores() -> dict:
-    """Find sleep sessions without an OW sleep score and calculate them.
+    """Find sleep sessions without an Healine sleep score and calculate them.
 
     Runs frequently (every few minutes) so scores appear shortly after any sync
     path (periodic pull, webhook, SDK upload). Uses a LEFT JOIN on event_record_id

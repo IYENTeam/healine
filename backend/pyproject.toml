@@ -1,5 +1,5 @@
 [project]
-name = "open-wearables"
+name = "healine"
 version = "0.8.0"
 description = ""
 requires-python = ">=3.13"

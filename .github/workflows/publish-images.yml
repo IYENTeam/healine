@@ -25,6 +25,7 @@ jobs:
   # a dispatch can't move latest/nightly or overwrite a release/nightly-<sha>
   # tag. TAG is passed via env, not inline ${{ }}, to avoid shell injection.
   validate:
+    if: ${{ vars.HEALINE_PUBLISH_IMAGES == 'true' && vars.DOCKERHUB_NAMESPACE != '' }}
     runs-on: ubuntu-latest
     steps:
       - name: Validate manual tag
@@ -66,11 +67,11 @@ jobs:
           - name: backend
             context: ./backend
             dockerfile: ./backend/Dockerfile
-            image: themomentum/open-wearables-backend
+            image: ${{ vars.DOCKERHUB_NAMESPACE }}/healine-backend
           - name: frontend
             context: ./frontend
             dockerfile: ./frontend/Dockerfile
-            image: themomentum/open-wearables-frontend
+            image: ${{ vars.DOCKERHUB_NAMESPACE }}/healine-frontend
           - arch: amd64
             runner: ubuntu-latest
           - arch: arm64
@@ -148,9 +149,9 @@ jobs:
       matrix:
         include:
           - name: backend
-            image: themomentum/open-wearables-backend
+            image: ${{ vars.DOCKERHUB_NAMESPACE }}/healine-backend
           - name: frontend
-            image: themomentum/open-wearables-frontend
+            image: ${{ vars.DOCKERHUB_NAMESPACE }}/healine-frontend
     steps:
       - uses: actions/checkout@v4
 

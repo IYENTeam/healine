@@ -2,17 +2,16 @@
 title: "Oura Ring API Integration"
 description: "Connect Oura Ring via OAuth 2.0 to sync sleep with stages, readiness, activity, 24/7 heart rate, SpO2, and workouts. Real-time updates via webhooks. Requires an Oura account."
 keywords: ["oura api integration", "oura ring api", "oura health data", "oura sleep readiness api"]
-"og:title": "Oura Ring API Integration | Open Wearables"
+"og:title": "Oura Ring API Integration | Healine"
 "og:description": "Connect Oura Ring via OAuth 2.0. Syncs sleep, readiness, activity, heart rate, SpO2, and workouts. Real-time updates via webhooks."
-"og:url": "https://docs.openwearables.io/providers/oura-api-integration"
 "og:type": "article"
-"twitter:title": "Oura Ring API Integration | Open Wearables"
+"twitter:title": "Oura Ring API Integration | Healine"
 "twitter:description": "Connect Oura Ring via OAuth 2.0. Syncs sleep, readiness, activity, heart rate, SpO2, and workouts. Real-time updates via webhooks."
 "twitter:card": "summary_large_image"
 ---
 
 <Note>
-**Need help with your Oura integration?** Pop into our [Discord](https://discord.gg/qrcfFnNE6H) if you have questions or want to discover how Open Wearables can solve your problems.
+**Need help with your Oura integration?** Pop into our [Discord](https://discord.gg/qrcfFnNE6H) if you have questions or want to discover how Healine can solve your problems.
 </Note>
 
 ## Overview
@@ -36,11 +35,11 @@ Oura provides access to sleep, readiness, activity, heart rate, and workout data
 
 | Method | Description |
 |--------|-------------|
-| **Webhooks (push)** - *recommended* | Oura notifies Open Wearables in real time when sleep, readiness, activity, SpO2, or workout data is created or updated. Subscriptions are app-level and are registered automatically when you switch Oura to webhook live-sync mode. |
-| **Polling (pull)** | Open Wearables periodically fetches daily metrics via the Oura API v2 (default: every hour via Celery Beat) |
+| **Webhooks (push)** - *recommended* | Oura notifies Healine in real time when sleep, readiness, activity, SpO2, or workout data is created or updated. Subscriptions are app-level and are registered automatically when you switch Oura to webhook live-sync mode. |
+| **Polling (pull)** | Healine periodically fetches daily metrics via the Oura API v2 (default: every hour via Celery Beat) |
 
 <Tip>
-**We recommend running Oura in webhook mode.** You get data as soon as Oura finalizes it - typically within seconds instead of up to an hour - with less API traffic and no polling lag. Open Wearables still falls back to periodic pull, so webhooks are purely additive. See **Enable webhooks (recommended)** in the walkthrough below.
+**We recommend running Oura in webhook mode.** You get data as soon as Oura finalizes it - typically within seconds instead of up to an hour - with less API traffic and no polling lag. Healine still falls back to periodic pull, so webhooks are purely additive. See **Enable webhooks (recommended)** in the walkthrough below.
 </Tip>
 
 ## What you need by the end
@@ -73,7 +72,7 @@ Oura provides access to sleep, readiness, activity, heart rate, and workout data
     - **Contact Email**: Who Oura can contact about the app
     - **Website**: Your application or company URL
     - **Privacy Policy** / **Terms of Service**: URLs to your policy pages
-    - **Redirect URIs**: Your OAuth callback URL. Open Wearables derives this from your `API_BASE_URL` as `{API_BASE_URL}/api/v1/oauth/oura/callback`, so register that exact URL here. Oura requires a publicly accessible **HTTPS** URL, so plain `http://localhost` is not accepted - for local development, expose your backend with [ngrok](/dev-guides/ngrok-setup) and register e.g. `https://your-subdomain.ngrok-free.app/api/v1/oauth/oura/callback`. In production use your public domain, e.g. `https://your-domain/api/v1/oauth/oura/callback`.
+    - **Redirect URIs**: Your OAuth callback URL. Healine derives this from your `API_BASE_URL` as `{API_BASE_URL}/api/v1/oauth/oura/callback`, so register that exact URL here. Oura requires a publicly accessible **HTTPS** URL, so plain `http://localhost` is not accepted - for local development, expose your backend with [ngrok](/dev-guides/ngrok-setup) and register e.g. `https://your-subdomain.ngrok-free.app/api/v1/oauth/oura/callback`. In production use your public domain, e.g. `https://your-domain/api/v1/oauth/oura/callback`.
     - **Scopes**: Select the data scopes your app needs (see the [OAuth Scopes Reference](#oauth-scopes-reference) below)
 
     Tick **I agree to the Oura API Agreement**, then click **Create Application**.
@@ -87,7 +86,7 @@ Oura provides access to sleep, readiness, activity, heart rate, and workout data
     </Warning>
   </Step>
 
-  <Step title="Configure credentials in Open Wearables">
+  <Step title="Configure credentials in Healine">
     Add the following to your `.env` file:
 
 ```bash
@@ -117,7 +116,7 @@ OURA_WEBHOOK_VERIFICATION_TOKEN=your-oura-webhook-verification-token
   </Step>
 
   <Step title="Connect a user via OAuth">
-    With credentials configured and your Open Wearables instance running, initiate the OAuth flow.
+    With credentials configured and your Healine instance running, initiate the OAuth flow.
 
     **1. Get the authorization URL:**
 
@@ -136,7 +135,7 @@ OURA_WEBHOOK_VERIFICATION_TOKEN=your-oura-webhook-verification-token
 
     **2. Redirect the user** to the `authorization_url`. They will log in to Oura and authorize your app.
 
-    **3. Oura redirects back** to the callback URI derived from `API_BASE_URL` (`{API_BASE_URL}/api/v1/oauth/oura/callback`). Open Wearables automatically exchanges the authorization code for access and refresh tokens.
+    **3. Oura redirects back** to the callback URI derived from `API_BASE_URL` (`{API_BASE_URL}/api/v1/oauth/oura/callback`). Healine automatically exchanges the authorization code for access and refresh tokens.
 
     **4. Verify the connection:**
 
@@ -153,19 +152,19 @@ OURA_WEBHOOK_VERIFICATION_TOKEN=your-oura-webhook-verification-token
   </Step>
 
   <Step title="Enable webhooks (recommended)">
-    **We recommend webhooks over polling.** They give you real-time updates instead of waiting for the next polling cycle - when Oura records new sleep, readiness, activity, SpO2, or workout data, it immediately notifies Open Wearables, which fetches and saves the record.
+    **We recommend webhooks over polling.** They give you real-time updates instead of waiting for the next polling cycle - when Oura records new sleep, readiness, activity, SpO2, or workout data, it immediately notifies Healine, which fetches and saves the record.
 
-    By default Oura runs in **pull** (polling) mode. Switching its live-sync mode to **webhook** registers the subscriptions for you automatically - Open Wearables dispatches a background task that creates a subscription for every supported data type and event type. Make sure `OURA_CLIENT_ID`, `OURA_CLIENT_SECRET`, and a public `API_BASE_URL` are configured first.
+    By default Oura runs in **pull** (polling) mode. Switching its live-sync mode to **webhook** registers the subscriptions for you automatically - Healine dispatches a background task that creates a subscription for every supported data type and event type. Make sure `OURA_CLIENT_ID`, `OURA_CLIENT_SECRET`, and a public `API_BASE_URL` are configured first.
 
     **Switch Oura to webhook mode from the dashboard:**
 
-    In your Open Wearables dashboard, go to **Settings → Providers**, find **Oura**, and switch its live-sync control from **Periodic pull** to **Webhook**. That's it - the subscriptions are registered in the background.
+    In your Healine dashboard, go to **Settings → Providers**, find **Oura**, and switch its live-sync control from **Periodic pull** to **Webhook**. That's it - the subscriptions are registered in the background.
 
     <Note>
     Because the callback must be publicly reachable over HTTPS, set `API_BASE_URL` to your public domain (or your [ngrok](/dev-guides/ngrok-setup) URL for local development) before switching to webhook mode.
     </Note>
 
-    Open Wearables derives the callback URL from your `API_BASE_URL` as `{API_BASE_URL}/api/v1/providers/oura/webhooks`, registers a subscription for each data type / event type, and Oura verifies each one using your `OURA_WEBHOOK_VERIFICATION_TOKEN`. Subscriptions are **app-level** - they cover all authorized users.
+    Healine derives the callback URL from your `API_BASE_URL` as `{API_BASE_URL}/api/v1/providers/oura/webhooks`, registers a subscription for each data type / event type, and Oura verifies each one using your `OURA_WEBHOOK_VERIFICATION_TOKEN`. Subscriptions are **app-level** - they cover all authorized users.
 
     **Subscribed data types:** `sleep`, `daily_sleep`, `daily_readiness`, `daily_activity`, `daily_spo2`, `daily_cardiovascular_age`, `workout` - each for the `create` and `update` events.
 
@@ -197,7 +196,7 @@ OURA_WEBHOOK_VERIFICATION_TOKEN=your-oura-webhook-verification-token
   </Step>
 
   <Step title="Verify the integration">
-    Once data has synced, fetch it via the Open Wearables API:
+    Once data has synced, fetch it via the Healine API:
 
     ```bash
     # Fetch sleep sessions
@@ -240,14 +239,14 @@ OURA_WEBHOOK_VERIFICATION_TOKEN=your-oura-webhook-verification-token
 | `heart_health` | Cardiovascular age and VO2 max |
 
 <Note>
-The scopes requested by Open Wearables are controlled by `OURA_DEFAULT_SCOPE` and must be a subset of the scopes enabled on your application in the Developer portal.
+The scopes requested by Healine are controlled by `OURA_DEFAULT_SCOPE` and must be a subset of the scopes enabled on your application in the Developer portal.
 </Note>
 
 ## Next Steps
 
 <CardGroup cols={2}>
   <Card title="API Reference" icon="terminal" href="/api-reference/introduction">
-    Explore the Open Wearables API endpoints.
+    Explore the Healine API endpoints.
   </Card>
   <Card title="Coverage Matrix" icon="table" href="/providers/coverage">
     See the full data coverage comparison.
@@ -259,6 +258,6 @@ The scopes requested by Open Wearables are controlled by `OURA_DEFAULT_SCOPE` an
 <Note>
 **Need Help?**
 - Join our [Discord](https://discord.gg/qrcfFnNE6H) and ask a question.
-- Check [GitHub Discussions](https://github.com/the-momentum/open-wearables/discussions).
+- Check [Healine issues](https://github.com/IYENTeam/healine/issues).
 - Check the [Oura API Docs](https://cloud.ouraring.com/v2/docs).
 </Note>

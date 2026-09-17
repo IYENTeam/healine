@@ -8,7 +8,8 @@ import {
   forgotPasswordSchema,
   type ForgotPasswordFormData,
 } from '@/lib/validation/auth.schemas';
-import { Activity, ArrowLeft, Mail, CheckCircle, Loader2 } from 'lucide-react';
+import { ArrowLeft, Mail, CheckCircle, Loader2 } from 'lucide-react';
+import { BrandLogo } from '@/components/common/brand-logo';
 import { DEFAULT_REDIRECTS, ROUTES } from '@/lib/constants/routes';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -55,14 +56,7 @@ function ForgotPasswordPage() {
       <div className="w-full max-w-md bg-black border border-zinc-900/80 rounded-2xl overflow-hidden shadow-[0_0_50px_-12px_rgba(0,0,0,0.8)] relative z-10 backdrop-blur-sm">
         {/* Header */}
         <div className="p-8 border-b border-zinc-900">
-          <div className="flex items-center gap-2 mb-8">
-            <div className="w-6 h-6 bg-white rounded flex items-center justify-center">
-              <Activity className="text-black w-4 h-4" />
-            </div>
-            <span className="text-sm font-medium text-white tracking-tight uppercase">
-              Open Wearables
-            </span>
-          </div>
+          <BrandLogo className="mb-8" />
 
           {!isSubmitted ? (
             <>

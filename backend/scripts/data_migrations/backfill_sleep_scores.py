@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Backfill OW sleep scores for sessions that have none.
+"""Backfill Healine sleep scores for sessions that have none.
 
 Mirrors the logic in fill_missing_sleep_scores_task but runs as a one-off
 script with a configurable lookback window.  Useful after the
@@ -57,7 +57,7 @@ _MISSING_SCORES_QUERY = text("""
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Backfill OW sleep scores for unscored sessions.")
+    parser = argparse.ArgumentParser(description="Backfill Healine sleep scores for unscored sessions.")
     parser.add_argument(
         "--days",
         type=int,

@@ -1,6 +1,6 @@
-# Open Wearables
+# Healine
 
-Open Wearables is a health/wearable data aggregation platform with a Python/FastAPI backend and React/TypeScript frontend.
+Healine is a health/wearable data aggregation platform with a Python/FastAPI backend and React/TypeScript frontend.
 
 ## Documentation Structure
 
@@ -13,7 +13,7 @@ Open Wearables is a health/wearable data aggregation platform with a Python/Fast
 ## Project Structure
 
 ```
-open-wearables/
+healine/
 ├── backend/           # Python/FastAPI backend
 ├── frontend/          # React/TypeScript frontend
 ├── mcp/               # MCP server for AI assistants

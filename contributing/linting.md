@@ -1,6 +1,6 @@
 # Code Style & Linting
 
-This guide covers code formatting and linting for Open Wearables.
+This guide covers code formatting and linting for Healine.
 
 ## Quick Start
 

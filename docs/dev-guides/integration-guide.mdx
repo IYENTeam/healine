@@ -1,25 +1,24 @@
 ---
-title: "Open Wearables Integration Guide"
+title: "Healine Integration Guide"
 sidebarTitle: "Integration Guide"
 description: "Create users, connect wearable providers via OAuth, and fetch health metrics. FastAPI examples included. Works with any backend language."
-keywords: ["health api integration guide", "wearable api integration", "open wearables api tutorial", "health data api tutorial"]
-"og:title": "Open Wearables Integration Guide"
+keywords: ["health api integration guide", "wearable api integration", "healine api tutorial", "health data api tutorial"]
+"og:title": "Healine Integration Guide"
 "og:description": "Create users, connect providers via OAuth, fetch health metrics. FastAPI examples. Any backend language."
-"og:url": "https://docs.openwearables.io/dev-guides/integration-guide"
 "og:type": "article"
-"twitter:title": "Open Wearables Integration Guide"
+"twitter:title": "Healine Integration Guide"
 "twitter:description": "Create users, connect providers via OAuth, fetch health metrics. FastAPI examples. Any backend language."
 "twitter:card": "summary_large_image"
 ---
 
-This guide walks you through the complete integration flow with Open Wearables - creating users from your backend, handing users off to wearable providers via OAuth (the frontend redirect dance included), and fetching normalized health data back.
+This guide walks you through the complete integration flow with Healine - creating users from your backend, handing users off to wearable providers via OAuth (the frontend redirect dance included), and fetching normalized health data back.
 
 ## Prerequisites
 
 Before you begin, ensure you have:
 
-- Open Wearables instance running (self-hosted or cloud)
-- API Key generated from the settings tab in Open Wearables Developer portal
+- Healine instance running (self-hosted or cloud)
+- API Key generated from the settings tab in Healine Developer portal
 - Your backend framework ready (examples use Python/FastAPI, but concepts apply to any language)
 
 ### Environment Variables
@@ -55,14 +54,14 @@ If you're building a mobile app that pushes health data (e.g., Apple Health from
     | Authentication | Use Case |
     |----------------|----------|
     | **API Key** | Backend-to-backend integration, fetching data, OAuth flows |
-    | **SDK Token** | Mobile apps pushing health data to Open Wearables |
+    | **SDK Token** | Mobile apps pushing health data to Healine |
   </Tab>
   <Tab title="How It Works">
     ```mermaid
     sequenceDiagram
         participant App as Mobile App
         participant Backend as Your Backend
-        participant OW as Open Wearables
+        participant OW as Healine
 
         App->>Backend: User logs in
         Backend->>OW: Exchange app credentials for token
@@ -159,7 +158,7 @@ SDK tokens are **only valid for `/sdk/` endpoints**. All other API endpoints wil
 ```mermaid
 sequenceDiagram
     participant App as Your App
-    participant OW as Open Wearables
+    participant OW as Healine
     participant Provider as Wearable Provider
 
     App->>OW: 1. Create user
@@ -178,7 +177,7 @@ sequenceDiagram
 
 ## Step 1: User Registration
 
-When a user registers in your application, create a corresponding user in Open Wearables.
+When a user registers in your application, create a corresponding user in Healine.
 
 ### Create User
 
@@ -187,8 +186,8 @@ All fields in the create-user payload are **optional** - you can even `POST` an 
 | Field        | Type     | Required | Notes                                                                                        |
 | ------------ | -------- | -------- | -------------------------------------------------------------------------------------------- |
 | `email`      | `string` | Optional | Must be a valid email if provided. Not enforced unique - see the note below.                 |
-| `first_name` | `string` | Optional | Max 100 characters. Useful for display in the Open Wearables dashboard.                      |
-| `last_name`  | `string` | Optional | Max 100 characters. Useful for display in the Open Wearables dashboard.                      |
+| `first_name` | `string` | Optional | Max 100 characters. Useful for display in the Healine dashboard.                      |
+| `last_name`  | `string` | Optional | Max 100 characters. Useful for display in the Healine dashboard.                      |
 
 <CodeGroup>
 
@@ -269,12 +268,12 @@ async function createUser(input: CreateUserInput): Promise<User> {
 Any field you omit from the request will come back as `null`.
 
 <Warning>
-**Store the Open Wearables User ID!** You'll need this ID for all subsequent API calls.
+**Store the Healine User ID!** You'll need this ID for all subsequent API calls.
 </Warning>
 
 ### Update Your User Model
 
-Add a field to store the Open Wearables user ID:
+Add a field to store the Healine user ID:
 
 <CodeGroup>
 
@@ -285,25 +284,25 @@ from sqlalchemy.orm import Mapped, mapped_column
 class User(Base):
     id: Mapped[UUID] = mapped_column(primary_key=True)
     email: Mapped[str]
-    open_wearables_user_id: Mapped[UUID | None]  # Add this!
+    healine_user_id: Mapped[UUID | None]  # Add this!
 ```
 
 ```typescript Prisma
 model User {
   id                   String  @id @default(uuid())
   email                String
-  openWearablesUserId  String? // Add this!
+  healineUserId  String? // Add this!
 }
 ```
 
 </CodeGroup>
 
 <Note>
-Open Wearables does **not** enforce uniqueness on `email`, `first_name`, or `last_name` - calling `POST /api/v1/users` twice with the same email will happily create two separate user records. Your backend is the source of truth for user identity and is responsible for ensuring you only create one Open Wearables user per user in your system (e.g. by storing `open_wearables_user_id` on your own user row and checking it before creating).
+Healine does **not** enforce uniqueness on `email`, `first_name`, or `last_name` - calling `POST /api/v1/users` twice with the same email will happily create two separate user records. Your backend is the source of truth for user identity and is responsible for ensuring you only create one Healine user per user in your system (e.g. by storing `healine_user_id` on your own user row and checking it before creating).
 </Note>
 
 <Warning>
-The legacy `external_user_id` column does still carry a DB-level unique constraint, so sending a duplicate value there will fail with an integrity error. **The field is deprecated** and no data-fetching endpoint accepts it - do not rely on it for deduplication. Use the pattern above (store the Open Wearables UUID on your side) instead.
+The legacy `external_user_id` column does still carry a DB-level unique constraint, so sending a duplicate value there will fail with an integrity error. **The field is deprecated** and no data-fetching endpoint accepts it - do not rely on it for deduplication. Use the pattern above (store the Healine UUID on your side) instead.
 </Warning>
 
 ---
@@ -481,15 +480,15 @@ async def get_auth_url(provider: str, user_id: str) -> str:
     Your frontend initiates the connection flow.
   </Step>
   <Step title="Your backend calls the authorize endpoint">
-    Request the authorization URL from Open Wearables.
+    Request the authorization URL from Healine.
   </Step>
   <Step title="Redirect user to authorization_url">
     The user authenticates with their wearable provider.
   </Step>
-  <Step title="Provider redirects to Open Wearables callback">
-    Open Wearables handles the OAuth callback automatically.
+  <Step title="Provider redirects to Healine callback">
+    Healine handles the OAuth callback automatically.
   </Step>
-  <Step title="Open Wearables redirects to your app">
+  <Step title="Healine redirects to your app">
     Configure a `redirect_uri` parameter to return users to your app.
   </Step>
 </Steps>
@@ -536,7 +535,7 @@ curl "http://localhost:8000/api/v1/users/176be8de-8452-4eb7-a7ea-147fec925d9d/co
 
 ## Step 3: Historical Backfill (Automatic)
 
-You do **not** need to explicitly trigger a sync after OAuth completes. On the first successful provider connection, Open Wearables automatically dispatches a historical backfill:
+You do **not** need to explicitly trigger a sync after OAuth completes. On the first successful provider connection, Healine automatically dispatches a historical backfill:
 
 - Up to **90 days** for pull-based providers (Polar, Suunto)
 - Up to **30 days** for Garmin (webhook-based backfill capped at 30 days from the user's consent date - further back is not retrievable)
@@ -757,27 +756,27 @@ To page through results, pass `cursor=<next_cursor>` until `has_more` is `false`
 
 ## Complete Integration Example
 
-Here's a complete Python client class for Open Wearables integration:
+Here's a complete Python client class for Healine integration:
 
 ```python
 import httpx
 from typing import Literal
 
-class OpenWearablesClient:
+class HealineClient:
     def __init__(self, base_url: str, api_key: str):
         self.base_url = base_url
         self.headers = {"X-Open-Wearables-API-Key": api_key}
 
     async def get_or_create_user(self, local_user) -> dict:
-        """Create an Open Wearables user if we haven't already, otherwise reuse the stored ID.
+        """Create an Healine user if we haven't already, otherwise reuse the stored ID.
 
-        `local_user` is your own user row - it stores `open_wearables_user_id` once set
-        so we never create a second Open Wearables user for the same person.
+        `local_user` is your own user row - it stores `healine_user_id` once set
+        so we never create a second Healine user for the same person.
         """
         async with httpx.AsyncClient() as client:
-            if local_user.open_wearables_user_id:
+            if local_user.healine_user_id:
                 resp = await client.get(
-                    f"{self.base_url}/api/v1/users/{local_user.open_wearables_user_id}",
+                    f"{self.base_url}/api/v1/users/{local_user.healine_user_id}",
                     headers=self.headers,
                 )
                 if resp.status_code == 200:
@@ -789,7 +788,7 @@ class OpenWearablesClient:
                 json={"email": local_user.email},
             )
             user = resp.json()
-            local_user.open_wearables_user_id = user["id"]  # persist on your side
+            local_user.healine_user_id = user["id"]  # persist on your side
             return user
 
     async def get_auth_url(
@@ -906,7 +905,7 @@ class OpenWearablesClient:
 
 # Usage example
 async def main():
-    client = OpenWearablesClient(
+    client = HealineClient(
         base_url="http://localhost:8000",
         api_key="sk-your-api-key",
     )
@@ -944,8 +943,8 @@ async def main():
 ## Troubleshooting
 
 <AccordionGroup>
-  <Accordion title="Docker container can't reach Open Wearables on localhost">
-    If your app runs in Docker and Open Wearables runs on the host machine:
+  <Accordion title="Docker container can't reach Healine on localhost">
+    If your app runs in Docker and Healine runs on the host machine:
     
     ```yaml docker-compose.yml
     services:
@@ -970,12 +969,12 @@ async def main():
   </Accordion>
   
   <Accordion title="Multiple users created for the same email">
-    `email` has no unique constraint in Open Wearables - calling `POST /api/v1/users` twice with the same email will create two separate records. Your backend is the source of truth for user identity, so store the Open Wearables `id` (UUID) on your own user row the first time you create it, and reuse that ID for every subsequent call:
+    `email` has no unique constraint in Healine - calling `POST /api/v1/users` twice with the same email will create two separate records. Your backend is the source of truth for user identity, so store the Healine `id` (UUID) on your own user row the first time you create it, and reuse that ID for every subsequent call:
 
     ```python
-    if not local_user.open_wearables_user_id:
+    if not local_user.healine_user_id:
         resp = await client.post("/api/v1/users", json={"email": local_user.email})
-        local_user.open_wearables_user_id = resp.json()["id"]
+        local_user.healine_user_id = resp.json()["id"]
         # persist local_user
     ```
 
@@ -1021,7 +1020,7 @@ async def main():
   <Card title="Data Model" icon="database" href="/architecture/unified-data-model">
     Understand the unified health data model.
   </Card>
-  <Card title="GitHub" icon="github" href="https://github.com/the-momentum/open-wearables">
+  <Card title="GitHub" icon="github" href="https://github.com/IYENTeam/healine">
     View source code and contribute.
   </Card>
 </CardGroup>

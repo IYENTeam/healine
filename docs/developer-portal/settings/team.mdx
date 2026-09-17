@@ -1,14 +1,13 @@
 ---
 title: "Team"
 sidebarTitle: "Team"
-description: "Invite and remove developers, manage pending invitations, and understand the single-permission access model of an Open Wearables deployment from Settings → Team in the developer portal."
+description: "Invite and remove developers, manage pending invitations, and understand the single-permission access model of an Healine deployment from Settings → Team in the developer portal."
 keywords: ["invite team member", "developer accounts", "developer roles", "admin account", "access model", "invitation link"]
-"og:title": "Team | Open Wearables"
-"og:description": "Invite and remove developers, manage pending invitations, and understand the single-permission access model of an Open Wearables deployment from Settings → Team in the developer portal."
-"og:url": "https://docs.openwearables.io/developer-portal/settings/team"
+"og:title": "Team | Healine"
+"og:description": "Invite and remove developers, manage pending invitations, and understand the single-permission access model of an Healine deployment from Settings → Team in the developer portal."
 "og:type": "article"
-"twitter:title": "Team | Open Wearables"
-"twitter:description": "Invite and remove developers, manage pending invitations, and understand the single-permission access model of an Open Wearables deployment from Settings → Team in the developer portal."
+"twitter:title": "Team | Healine"
+"twitter:description": "Invite and remove developers, manage pending invitations, and understand the single-permission access model of an Healine deployment from Settings → Team in the developer portal."
 "twitter:card": "summary_large_image"
 ---
 
@@ -16,7 +15,7 @@ keywords: ["invite team member", "developer accounts", "developer roles", "admin
 
 ## Inviting a developer
 
-Click **Invite Member** and enter an email address. Open Wearables creates the invitation and queues an email with a link to create the account.
+Click **Invite Member** and enter an email address. Healine creates the invitation and queues an email with a link to create the account.
 
 Invitation links expire after the number of days set in `INVITATION_EXPIRE_DAYS` (default 7).
 
@@ -27,7 +26,7 @@ Invitation emails are sent through [Resend](https://resend.com). Without it, inv
 ```bash
 RESEND_API_KEY=re_...
 EMAIL_FROM_ADDRESS=invites@yourdomain.com
-EMAIL_FROM_NAME="Open Wearables"
+EMAIL_FROM_NAME="Healine"
 FRONTEND_URL=https://portal.yourdomain.com
 ```
 
@@ -39,7 +38,7 @@ FRONTEND_URL=https://portal.yourdomain.com
 Delivery is handled by a Celery task, so the worker must be running. Failed sends are retried up to `EMAIL_MAX_RETRIES` times (default 5), after which the invitation is marked **failed** and can be re-sent from the developer portal.
 
 <Note>
-If `RESEND_API_KEY`, `EMAIL_FROM_ADDRESS`, or `EMAIL_FROM_NAME` is missing, the invitation stays **pending** and the backend logs a warning instead of sending. `EMAIL_FROM_NAME` defaults to "Open Wearables", so in practice only the first two need to be set. Use **Copy invite link** on the pending invitation and share the link manually.
+If `RESEND_API_KEY`, `EMAIL_FROM_ADDRESS`, or `EMAIL_FROM_NAME` is missing, the invitation stays **pending** and the backend logs a warning instead of sending. `EMAIL_FROM_NAME` defaults to "Healine", so in practice only the first two need to be set. Use **Copy invite link** on the pending invitation and share the link manually.
 </Note>
 
 ## Pending Invitations
@@ -56,7 +55,7 @@ The **Developers** table lists every account with access to the deployment, with
 
 ## Access model
 
-Open Wearables has a single permission level for developer accounts.
+Healine has a single permission level for developer accounts.
 
 - **Every developer account is an administrator** of the deployment. There are no roles. All developers see the same settings and can perform the same actions.
 - **There is no self-registration.** The first account is seeded from `ADMIN_EMAIL` and `ADMIN_PASSWORD` on first startup. Every further account can only be created through an invitation sent by an existing developer.

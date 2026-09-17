@@ -1,10 +1,10 @@
 # Reporting Issues
 
-This guide covers how to report bugs and request features for Open Wearables.
+This guide covers how to report bugs and request features for Healine.
 
 ## Before Creating an Issue
 
-1. **Search existing issues** - Your issue may already be reported at [GitHub Issues](https://github.com/the-momentum/open-wearables/issues)
+1. **Search existing issues** - Your issue may already be reported at [GitHub Issues](https://github.com/IYENTeam/healine/issues)
 2. **Check closed issues** - The issue may have been resolved in a recent update
 3. **Update to latest** - Ensure you're running the latest version
 
@@ -103,4 +103,4 @@ If you need help but it's not a bug or feature request:
 - Check the [documentation](https://openwearables.io/docs)
 - Review the [API reference](https://openwearables.io/docs/api-reference/introduction)
 - Browse the live API docs at `http://localhost:8000/docs` when running the stack locally
-- Ask in [GitHub Discussions](https://github.com/the-momentum/open-wearables/discussions) or on [Discord](https://discord.gg/qrcfFnNE6H)
+- Ask in [Healine issues](https://github.com/IYENTeam/healine/issues)

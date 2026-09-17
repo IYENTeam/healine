@@ -24,7 +24,7 @@ class TestSdkPayloadOffloadValidation:
             sdk_payload_s3_offload=True,
             raw_payload_storage="disabled",
             raw_payload_s3_bucket=None,
-            aws_bucket_name="open-wearables",
+            aws_bucket_name="healine",
         )
 
         assert settings.sdk_payload_s3_offload is True
@@ -32,11 +32,11 @@ class TestSdkPayloadOffloadValidation:
 
 class TestRawPayloadBucket:
     def test_prefers_the_dedicated_bucket(self) -> None:
-        settings = Settings(raw_payload_s3_bucket="payloads", aws_bucket_name="open-wearables")
+        settings = Settings(raw_payload_s3_bucket="payloads", aws_bucket_name="healine")
 
         assert settings.raw_payload_bucket == "payloads"
 
     def test_falls_back_to_the_aws_bucket(self) -> None:
-        settings = Settings(raw_payload_s3_bucket=None, aws_bucket_name="open-wearables")
+        settings = Settings(raw_payload_s3_bucket=None, aws_bucket_name="healine")
 
-        assert settings.raw_payload_bucket == "open-wearables"
+        assert settings.raw_payload_bucket == "healine"

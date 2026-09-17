@@ -8,7 +8,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { isAuthenticated } from '@/lib/auth/session';
-import logotype from '@/logotype.svg';
+import { BrandLogo } from '@/components/common/brand-logo';
 import { getCopyrightText } from '@/lib/constants/app';
 import {
   acceptInvitationSchema,
@@ -137,7 +137,7 @@ function AcceptInvitePage() {
         <div className="w-full max-w-md bg-black border border-zinc-900/80 rounded-2xl overflow-hidden shadow-[0_0_50px_-12px_rgba(0,0,0,0.8)] relative z-10 backdrop-blur-sm">
           <div className="p-8 border-b border-zinc-900">
             <div className="flex items-center gap-2 mb-8">
-              <img src={logotype} alt="Open Wearables" className="h-30" />
+              <BrandLogo className="h-12" />
             </div>
             <div className="text-center py-4">
               <div
@@ -181,7 +181,7 @@ function AcceptInvitePage() {
         <div className="w-full max-w-[1100px] h-full max-h-[700px] grid lg:grid-cols-2 bg-black border border-zinc-900/80 rounded-2xl overflow-hidden shadow-[0_0_50px_-12px_rgba(0,0,0,0.8)] relative z-10 backdrop-blur-sm">
           <div className="flex flex-col justify-between p-8 sm:p-12 border-b lg:border-b-0 lg:border-r border-zinc-900 bg-black/90">
             <div className="flex items-center justify-center gap-2">
-              <img src={logotype} alt="Open Wearables" className="h-30" />
+              <BrandLogo className="h-12" />
             </div>
 
             <div className="w-full max-w-sm mx-auto space-y-6 my-auto py-8">
@@ -359,7 +359,7 @@ function AcceptInvitePage() {
                 </h2>
                 <p className="text-sm text-zinc-500 text-center">
                   A team member has invited you to join their organization on
-                  Open Wearables. Complete your registration to get started.
+                  Healine. Complete your registration to get started.
                 </p>
               </div>
             </div>

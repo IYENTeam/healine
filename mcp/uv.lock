@@ -671,7 +671,7 @@ wheels = [
 ]
 
 [[package]]
-name = "open-wearables-mcp"
+name = "healine-mcp"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

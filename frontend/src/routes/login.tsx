@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { isAuthenticated } from '@/lib/auth/session';
 import { ArrowRight, Mail, Lock, Loader2 } from 'lucide-react';
-import logotype from '@/logotype.svg';
+import { BrandLogo } from '@/components/common/brand-logo';
 import { CodePreviewCard } from '@/components/login/code-preview-card';
 import { DEFAULT_REDIRECTS } from '@/lib/constants/routes';
 import { getCopyrightText } from '@/lib/constants/app';
@@ -41,7 +41,7 @@ function LoginPage() {
         {/* Left Section: Login Form */}
         <div className="flex flex-col justify-between p-8 sm:p-12 border-b lg:border-b-0 lg:border-r border-zinc-900 bg-black/90">
           {/* Header/Logo */}
-          <img src={logotype} alt="Open Wearables" className="h-30" />
+          <BrandLogo className="h-12 self-start" />
 
           {/* Main Form Container */}
           <div className="w-full max-w-sm mx-auto space-y-6 my-auto py-8">

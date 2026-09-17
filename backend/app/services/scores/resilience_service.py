@@ -314,7 +314,7 @@ class ResilienceScoreService:
     ) -> float | None:
         """Calculate overnight RMSSD from raw HR data filtered to sleep windows.
 
-        **RMSSD_OW** — Open Wearables overnight RMSSD.  Unlike device-reported RMSSD
+        **RMSSD_OW** — Healine overnight RMSSD.  Unlike device-reported RMSSD
         values (stored directly in DataPointSeries), this is recomputed from the HR
         time series via RR-interval conversion, giving full control over filtering and
         thresholding logic.
@@ -359,7 +359,7 @@ class ResilienceScoreService:
     ) -> float | None:
         """Calculate overnight SDNN from raw HR data filtered to sleep windows.
 
-        **SDNN_OW** — Open Wearables overnight SDNN.  Recomputed from the HR time
+        **SDNN_OW** — Healine overnight SDNN.  Recomputed from the HR time
         series via RR-interval conversion, analogous to RMSSD_OW.
 
         Intended for use by scheduled tasks that populate derived metrics.

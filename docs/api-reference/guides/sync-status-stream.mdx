@@ -2,12 +2,11 @@
 title: "Live Sync Status (SSE)"
 sidebarTitle: "Live Sync Status"
 description: "Stream real-time sync lifecycle events for a user via Server-Sent Events. Track when pulls, webhooks, SDK uploads, Apple Health imports, and Garmin backfills start, progress, and complete."
-keywords: ["sync status", "server-sent events", "SSE", "real-time sync", "sync progress", "open wearables"]
-"og:title": "Live Sync Status (SSE) | Open Wearables"
+keywords: ["sync status", "server-sent events", "SSE", "real-time sync", "sync progress", "healine"]
+"og:title": "Live Sync Status (SSE) | Healine"
 "og:description": "Subscribe to real-time sync lifecycle events for any user via SSE."
-"og:url": "https://docs.openwearables.io/api-reference/guides/sync-status-stream"
 "og:type": "article"
-"twitter:title": "Live Sync Status (SSE) | Open Wearables"
+"twitter:title": "Live Sync Status (SSE) | Healine"
 "twitter:description": "Subscribe to real-time sync lifecycle events via Server-Sent Events."
 "twitter:card": "summary_large_image"
 ---
@@ -27,7 +26,7 @@ All three accept the same `ApiKeyDep` authentication as the rest of the public A
 <CodeGroup>
 ```bash X-Open-Wearables-API-Key
 curl -H "X-Open-Wearables-API-Key: YOUR_API_KEY" \
-  "https://api.openwearables.io/api/v1/users/USER_ID/sync/stream"
+  "http://localhost:8000/api/v1/users/USER_ID/sync/stream"
 ```
 </CodeGroup>
 
@@ -100,7 +99,7 @@ Every event is a JSON object emitted as the `data` field of an SSE message with 
 ## Streaming endpoint
 
 ```bash
-curl -N "https://api.openwearables.io/api/v1/users/USER_ID/sync/stream?replay=20" \
+curl -N "http://localhost:8000/api/v1/users/USER_ID/sync/stream?replay=20" \
   -H "X-Open-Wearables-API-Key: YOUR_API_KEY"
 ```
 
@@ -158,7 +157,7 @@ HTTP/1.1 404 Not Found
 import { EventSource } from 'eventsource';
 
 const url =
-  'https://api.openwearables.io/api/v1/users/USER_ID/sync/stream?replay=20';
+  'http://localhost:8000/api/v1/users/USER_ID/sync/stream?replay=20';
 const es = new EventSource(url, {
   fetch: (input, init) =>
     fetch(input, { ...init, headers: { ...init.headers, 'X-Open-Wearables-API-Key': KEY } }),
@@ -175,7 +174,7 @@ es.addEventListener('sync.status', (msg) => {
 ## Recent events
 
 ```bash
-curl "https://api.openwearables.io/api/v1/users/USER_ID/sync/recent?limit=50" \
+curl "http://localhost:8000/api/v1/users/USER_ID/sync/recent?limit=50" \
   -H "X-Open-Wearables-API-Key: YOUR_API_KEY"
 ```
 
@@ -223,7 +222,7 @@ Events are retained in Redis for **24 hours**. Useful when reconnecting or rende
 ## Sync run summaries
 
 ```bash
-curl "https://api.openwearables.io/api/v1/users/USER_ID/sync/runs?limit=20" \
+curl "http://localhost:8000/api/v1/users/USER_ID/sync/runs?limit=20" \
   -H "X-Open-Wearables-API-Key: YOUR_API_KEY"
 ```
 

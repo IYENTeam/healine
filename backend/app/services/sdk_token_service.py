@@ -16,7 +16,7 @@ def create_sdk_user_token(app_id: str, user_id: str) -> str:
 
     Args:
         app_id: The application ID that requested this token
-        user_id: The OpenWearables User ID (UUID string)
+        user_id: The Healine User ID (UUID string)
 
     Returns:
         JWT token string

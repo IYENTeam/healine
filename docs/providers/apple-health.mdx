@@ -1,19 +1,18 @@
 ---
-title: "HealthKit Integration with Open Wearables"
-description: "Integrate Apple Health via HealthKit using the Open Wearables iOS, Flutter, and React Native SDKs. Push-based sync for steps, heart rate, sleep, and workouts. iOS 13+ required."
+title: "HealthKit Integration with Healine"
+description: "Integrate Apple Health via HealthKit using the Healine iOS, Flutter, and React Native SDKs. Push-based sync for steps, heart rate, sleep, and workouts. iOS 13+ required."
 keywords: ["healthkit integration", "apple health api", "apple health data", "healthkit open source"]
-"og:title": "HealthKit Integration with Open Wearables | Apple Health"
+"og:title": "HealthKit Integration with Healine | Apple Health"
 "og:description": "Sync Apple Health via HealthKit with the iOS, Flutter, and React Native SDKs. Covers steps, heart rate, sleep, workouts, HRV. iOS 13+, push-based."
-"og:url": "https://docs.openwearables.io/providers/apple-health"
 "og:type": "article"
-"twitter:title": "HealthKit Integration with Open Wearables | Apple Health"
+"twitter:title": "HealthKit Integration with Healine | Apple Health"
 "twitter:description": "Sync Apple Health via HealthKit with the iOS, Flutter, and React Native SDKs. Covers steps, heart rate, sleep, workouts, HRV. iOS 13+, push-based."
 "twitter:card": "summary_large_image"
 ---
 
 ## Overview
 
-Apple Health integration uses a **push-based model** where health data is sent from the user's device to Open Wearables using our mobile SDK. This is different from cloud providers like Garmin or Polar that use webhooks.
+Apple Health integration uses a **push-based model** where health data is sent from the user's device to Healine using our mobile SDK. This is different from cloud providers like Garmin or Polar that use webhooks.
 
 <Note>
   **Why Push-Based?** Apple HealthKit doesn't expose a cloud API. Health data lives exclusively on the user's device, so your mobile app must actively push data to your backend using our SDK.
@@ -92,7 +91,7 @@ See the [Flutter SDK documentation](/sdk/flutter#supported-health-data-types) fo
 
 ## Apple Health as a Data Bridge
 
-Even if a provider is **not yet directly supported** by Open Wearables, its data can still be collected by syncing it into Apple Health first.
+Even if a provider is **not yet directly supported** by Healine, its data can still be collected by syncing it into Apple Health first.
 
 <Warning>
   **Data scope may differ.** Third-party providers often write a limited subset of their data to Apple Health compared to what's available through their native APIs. For example, a device might expose detailed HRV metrics in its own app but only sync basic heart rate samples to HealthKit. If you need the full data scope, prefer a direct provider integration when available.

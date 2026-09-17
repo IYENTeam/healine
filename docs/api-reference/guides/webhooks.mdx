@@ -2,19 +2,18 @@
 title: "Outgoing Webhooks"
 sidebarTitle: "Outgoing Webhooks"
 description: "Receive real-time notifications when health data arrives for your users. Register HTTPS endpoints, filter by event type or user, verify signatures, and debug delivery."
-keywords: ["open wearables webhooks", "health data webhooks", "wearable data real-time", "webhook event types", "webhook signature verification"]
-"og:title": "Outgoing Webhooks | Open Wearables"
+keywords: ["healine webhooks", "health data webhooks", "wearable data real-time", "webhook event types", "webhook signature verification"]
+"og:title": "Outgoing Webhooks | Healine"
 "og:description": "Register HTTPS endpoints to receive real-time health data events. Filter by event type or user, verify payloads, debug delivery."
-"og:url": "https://docs.openwearables.io/api-reference/guides/webhooks"
 "og:type": "article"
-"twitter:title": "Outgoing Webhooks | Open Wearables"
-"twitter:description": "Register HTTPS endpoints to receive real-time health data events from Open Wearables."
+"twitter:title": "Outgoing Webhooks | Healine"
+"twitter:description": "Register HTTPS endpoints to receive real-time health data events from Healine."
 "twitter:card": "summary_large_image"
 ---
 
 ## Overview
 
-Outgoing webhooks let Open Wearables push events to your backend in real time, so you don't need to poll for new data. Each time a workout is saved, sleep is recorded, or a timeseries batch is ingested, Open Wearables fires an HTTP POST request to every registered endpoint that matches the event.
+Outgoing webhooks let Healine push events to your backend in real time, so you don't need to poll for new data. Each time a workout is saved, sleep is recorded, or a timeseries batch is ingested, Healine fires an HTTP POST request to every registered endpoint that matches the event.
 
 Webhooks are delivered via [Svix](https://svix.com/), which handles retries, signature signing, and delivery history.
 
@@ -24,7 +23,7 @@ Webhooks are delivered via [Svix](https://svix.com/), which handles retries, sig
 
 <CardGroup cols={2}>
   <Card title="Things you can do" icon="bolt">
-    Trigger downstream processing when a workout is synced, update your UI in real time when sleep data arrives, scope an endpoint to a single user's events, or verify payloads are genuinely from Open Wearables.
+    Trigger downstream processing when a workout is synced, update your UI in real time when sleep data arrives, scope an endpoint to a single user's events, or verify payloads are genuinely from Healine.
   </Card>
   <Card title="Requirements" icon="key">
     A developer account and a Bearer token (from `POST /api/v1/auth/login`), plus a publicly reachable HTTPS URL for your endpoint.
@@ -82,7 +81,7 @@ Webhooks are delivered via [Svix](https://svix.com/), which handles retries, sig
   </Step>
 
   <Step title="Handle incoming events">
-    Open Wearables sends a `POST` to your URL with a JSON body and three signature headers. Verify the signature before processing.
+    Healine sends a `POST` to your URL with a JSON body and three signature headers. Verify the signature before processing.
 
     <Tabs>
       <Tab title="Python">
@@ -387,7 +386,7 @@ Every payload envelope has `type` (the event name as a string) and `data`.
 ```
 
 <Note>
-  `pregnancy_snapshot` is populated (as a list with one entry) when the user is tracking a pregnancy. Garmin reuses the same summary ID for daily cycle updates — Open Wearables deduplicates by `external_id`, so the event fires only when a new record is first inserted.
+  `pregnancy_snapshot` is populated (as a list with one entry) when the user is tracking a pregnancy. Garmin reuses the same summary ID for daily cycle updates — Healine deduplicates by `external_id`, so the event fires only when a new record is first inserted.
 </Note>
 
 ### `activity.created`
@@ -547,7 +546,7 @@ curl -X PATCH "http://localhost:8000/api/v1/webhooks/endpoints/ep_2t8Q4Xv9mNkRpL
 
 ## Signature Verification
 
-Every delivery includes three headers that let you confirm the payload was sent by Open Wearables and hasn't been tampered with:
+Every delivery includes three headers that let you confirm the payload was sent by Healine and hasn't been tampered with:
 
 | Header | Description |
 |--------|-------------|
@@ -645,7 +644,7 @@ Returns `204 No Content` on success.
 
 ## Delivery and Retries
 
-Open Wearables (via Svix) retries failed deliveries automatically with exponential back-off. A delivery is considered failed when your endpoint returns a non-2xx status code or does not respond within the timeout.
+Healine (via Svix) retries failed deliveries automatically with exponential back-off. A delivery is considered failed when your endpoint returns a non-2xx status code or does not respond within the timeout.
 
 <AccordionGroup>
   <Accordion title="Retry schedule">

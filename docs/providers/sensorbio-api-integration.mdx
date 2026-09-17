@@ -2,17 +2,16 @@
 title: "Sensor Bio API Integration"
 description: "Connect Sensor Bio via OAuth 2.0. Syncs workouts, sleep with stages, recovery scores, HRV (RMSSD), SpO2, respiratory rate, and continuous 24/7 biometric timeseries."
 keywords: ["sensor bio api", "sensor bio integration", "sensor bio health data", "sensor bio wearable"]
-"og:title": "Sensor Bio API Integration | Open Wearables"
+"og:title": "Sensor Bio API Integration | Healine"
 "og:description": "Connect Sensor Bio via OAuth 2.0. Syncs workouts, sleep, recovery scores, HRV, SpO2, and continuous 24/7 biometrics."
-"og:url": "https://docs.openwearables.io/providers/sensorbio-api-integration"
 "og:type": "article"
-"twitter:title": "Sensor Bio API Integration | Open Wearables"
+"twitter:title": "Sensor Bio API Integration | Healine"
 "twitter:description": "Connect Sensor Bio via OAuth 2.0. Syncs workouts, sleep, recovery scores, HRV, SpO2, and 24/7 biometrics."
 "twitter:card": "summary_large_image"
 ---
 
 <Note>
-**Need help with your Sensor Bio integration?** Pop into our [Discord](https://discord.gg/qrcfFnNE6H) if you have questions or want to discover how Open Wearables can solve your problems.
+**Need help with your Sensor Bio integration?** Pop into our [Discord](https://discord.gg/qrcfFnNE6H) if you have questions or want to discover how Healine can solve your problems.
 </Note>
 
 ## Overview
@@ -34,7 +33,7 @@ Sensor Bio provides access to workout, sleep, recovery, and continuous biometric
 
 | Method | Description |
 |--------|-------------|
-| **Polling (pull)** | Open Wearables periodically fetches workout, sleep, recovery, daily stats, and 24/7 biometric data via the Sensor Bio API. |
+| **Polling (pull)** | Healine periodically fetches workout, sleep, recovery, daily stats, and 24/7 biometric data via the Sensor Bio API. |
 
 ### Provider quirks
 
@@ -64,10 +63,10 @@ SENSORBIO_REDIRECT_URI=https://your-domain/api/v1/oauth/callback/sensorbio
 
 The integration follows the standard OAuth 2.0 authorization code flow:
 
-1. User initiates connection — Open Wearables redirects to `https://api.sensorbio.com/oauth/authorize`
+1. User initiates connection — Healine redirects to `https://api.sensorbio.com/oauth/authorize`
 2. User grants consent in the Sensor Bio app
 3. Sensor Bio redirects back with an authorization code
-4. Open Wearables exchanges the code for `access_token` + `refresh_token`
+4. Healine exchanges the code for `access_token` + `refresh_token`
 5. Tokens are stored encrypted per-user and refreshed automatically on expiry
 
 ## Data sync

@@ -1,5 +1,5 @@
 """
-Main pytest configuration for Open Wearables backend tests.
+Main pytest configuration for Healine backend tests.
 
 Following patterns from know-how-tests.md:
 - PostgreSQL test database with transaction rollback (via testcontainers or external DB)
@@ -51,9 +51,9 @@ def _postgres_url() -> Generator[str, None, None]:
 
     with PostgresContainer(
         image="postgres:18",
-        username="open-wearables",
-        password="open-wearables",
-        dbname="open_wearables_test",
+        username="healine",
+        password="healine",
+        dbname="healine_test",
         driver="psycopg",
     ) as pg:
         yield pg.get_connection_url()

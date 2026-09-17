@@ -5,7 +5,7 @@ import logging
 from fastmcp import FastMCP
 
 from app.services.api_client import client
-from app.services.exceptions import NotFoundError, OpenWearablesError
+from app.services.exceptions import HealineError, NotFoundError
 from app.utils import normalize_datetime
 
 logger = logging.getLogger(__name__)
@@ -172,7 +172,7 @@ async def get_workout_events(
             "summary": summary,
         }
 
-    except OpenWearablesError as e:
+    except HealineError as e:
         logger.error(f"API error in get_workout_events: {e}")
         return {"error": str(e)}
     except Exception as e:

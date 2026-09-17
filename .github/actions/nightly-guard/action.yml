@@ -6,7 +6,7 @@ description: >-
 
 inputs:
   image:
-    description: Image name without tag, e.g. themomentum/open-wearables-backend
+    description: Image name without tag, e.g. your-namespace/healine-backend
     required: true
 
 outputs:

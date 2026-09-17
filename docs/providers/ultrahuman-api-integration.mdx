@@ -2,17 +2,16 @@
 title: "Ultrahuman Ring API Integration"
 description: "Connect Ultrahuman Ring Air via OAuth 2.0 to sync sleep stages, HRV, and 24/7 heart rate. Requires Partnership API access. Pull-based syncing."
 keywords: ["ultrahuman api integration", "ultrahuman ring api", "ultrahuman health data", "ultrahuman hrv"]
-"og:title": "Ultrahuman Ring API Integration | Open Wearables"
+"og:title": "Ultrahuman Ring API Integration | Healine"
 "og:description": "Connect Ultrahuman Ring Air via OAuth 2.0. Syncs sleep, HRV, and 24/7 heart rate. Requires Partnership API access."
-"og:url": "https://docs.openwearables.io/providers/ultrahuman-api-integration"
 "og:type": "article"
-"twitter:title": "Ultrahuman Ring API Integration | Open Wearables"
+"twitter:title": "Ultrahuman Ring API Integration | Healine"
 "twitter:description": "Connect Ultrahuman Ring Air via OAuth 2.0. Syncs sleep, HRV, and 24/7 heart rate. Requires Partnership API access."
 "twitter:card": "summary_large_image"
 ---
 
 <Note>
-**Need help with your Ultrahuman integration?** Pop into our [Discord](https://discord.gg/qrcfFnNE6H) if you have questions or want to discover how Open Wearables can solve your problems.
+**Need help with your Ultrahuman integration?** Pop into our [Discord](https://discord.gg/qrcfFnNE6H) if you have questions or want to discover how Healine can solve your problems.
 </Note>
 
 ## Overview
@@ -36,7 +35,7 @@ Ultrahuman provides access to sleep, recovery, and continuous activity data thro
 
 | Method | Description |
 |--------|-------------|
-| **Polling (pull)** | Open Wearables periodically fetches daily metrics via the Ultrahuman Partnership API (default: every hour via Celery Beat) |
+| **Polling (pull)** | Healine periodically fetches daily metrics via the Ultrahuman Partnership API (default: every hour via Celery Beat) |
 
 ## What you need by the end
 
@@ -74,7 +73,7 @@ Ultrahuman provides access to sleep, recovery, and continuous activity data thro
     </Warning>
   </Step>
 
-  <Step title="Configure credentials in Open Wearables">
+  <Step title="Configure credentials in Healine">
     Add the following to your `.env` file:
 
 ```bash
@@ -97,7 +96,7 @@ ULTRAHUMAN_DEFAULT_SCOPE=ring_data cgm_data profile
   </Step>
 
   <Step title="Connect a user via OAuth">
-    With credentials configured and your Open Wearables instance running, initiate the OAuth flow.
+    With credentials configured and your Healine instance running, initiate the OAuth flow.
 
     **1. Get the authorization URL:**
 
@@ -116,7 +115,7 @@ ULTRAHUMAN_DEFAULT_SCOPE=ring_data cgm_data profile
 
     **2. Redirect the user** to the `authorization_url`. They will log in to Ultrahuman and authorize your app.
 
-    **3. Ultrahuman redirects back** to the callback URI configured in your `.env`. Open Wearables automatically exchanges the authorization code for access and refresh tokens.
+    **3. Ultrahuman redirects back** to the callback URI configured in your `.env`. Healine automatically exchanges the authorization code for access and refresh tokens.
 
     **4. Verify the connection:**
 
@@ -147,7 +146,7 @@ ULTRAHUMAN_DEFAULT_SCOPE=ring_data cgm_data profile
   </Step>
 
   <Step title="Verify the integration">
-    Once data has synced, fetch it via the Open Wearables API:
+    Once data has synced, fetch it via the Healine API:
 
     ```bash
     # Fetch sleep sessions
@@ -184,7 +183,7 @@ ULTRAHUMAN_DEFAULT_SCOPE=ring_data cgm_data profile
 
 <CardGroup cols={2}>
   <Card title="API Reference" icon="terminal" href="/api-reference/introduction">
-    Explore the Open Wearables API endpoints.
+    Explore the Healine API endpoints.
   </Card>
   <Card title="Coverage Matrix" icon="table" href="/providers/coverage">
     See the full data coverage comparison.
@@ -196,6 +195,6 @@ ULTRAHUMAN_DEFAULT_SCOPE=ring_data cgm_data profile
 <Note>
 **Need Help?**
 - Join our [Discord](https://discord.gg/qrcfFnNE6H) and ask a question.
-- Check [GitHub Discussions](https://github.com/the-momentum/open-wearables/discussions).
+- Check [Healine issues](https://github.com/IYENTeam/healine/issues).
 - Check the [Ultrahuman Developer Docs](https://vision.ultrahuman.com/developer-docs).
 </Note>

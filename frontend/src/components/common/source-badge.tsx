@@ -1,4 +1,5 @@
 import { cn } from '@/lib/utils';
+import { APP_NAME } from '@/lib/constants/app';
 
 interface SourceBadgeProps {
   provider: string;
@@ -37,7 +38,7 @@ const PROVIDER_STYLES: Record<
   internal: {
     bg: 'bg-success-muted/15',
     text: 'text-success-muted',
-    label: 'OW',
+    label: APP_NAME,
   },
 };
 

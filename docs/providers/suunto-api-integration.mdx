@@ -2,17 +2,16 @@
 title: "Suunto API Integration"
 description: "Connect Suunto devices via OAuth 2.0 to sync workout, sleep, and 24/7 health metrics. Requires Suunto Developer Program access. Full data type coverage."
 keywords: ["suunto api integration", "suunto oauth", "suunto health data", "suunto api"]
-"og:title": "Suunto API Integration | Open Wearables"
+"og:title": "Suunto API Integration | Healine"
 "og:description": "Connect Suunto via OAuth 2.0. Syncs workouts, sleep, and 24/7 metrics. Requires Suunto Developer Program access."
-"og:url": "https://docs.openwearables.io/providers/suunto-api-integration"
 "og:type": "article"
-"twitter:title": "Suunto API Integration | Open Wearables"
+"twitter:title": "Suunto API Integration | Healine"
 "twitter:description": "Connect Suunto via OAuth 2.0. Syncs workouts, sleep, and 24/7 metrics. Requires Suunto Developer Program access."
 "twitter:card": "summary_large_image"
 ---
 
 <Note>
-**Need help with your Suunto integration?** Pop into our [Discord](https://discord.gg/qrcfFnNE6H) if you have questions or want to discover how Open Wearables can solve your problems.
+**Need help with your Suunto integration?** Pop into our [Discord](https://discord.gg/qrcfFnNE6H) if you have questions or want to discover how Healine can solve your problems.
 </Note>
 
 ## Overview
@@ -39,11 +38,11 @@ Access requires membership in the **Suunto Developer Program** - you must apply 
 
 | Method | Description |
 |--------|-------------|
-| **Webhooks (push)** | Suunto pushes each event to your notification URL with the data delivered inline. Open Wearables acknowledges within Suunto's 2-second timeout and processes the payload asynchronously. Handles `WORKOUT_CREATED`, `SUUNTO_247_ACTIVITY_CREATED`, `SUUNTO_247_SLEEP_CREATED`, and `SUUNTO_247_RECOVERY_CREATED` (`ROUTE_CREATED` is acknowledged but ignored). |
-| **Polling (pull)** | Open Wearables fetches workouts (`/v3/workouts/`) and 24/7 data (`/247samples/*`, `/247/daily-activity-statistics`) over REST for historical sync and as a fallback. |
+| **Webhooks (push)** | Suunto pushes each event to your notification URL with the data delivered inline. Healine acknowledges within Suunto's 2-second timeout and processes the payload asynchronously. Handles `WORKOUT_CREATED`, `SUUNTO_247_ACTIVITY_CREATED`, `SUUNTO_247_SLEEP_CREATED`, and `SUUNTO_247_RECOVERY_CREATED` (`ROUTE_CREATED` is acknowledged but ignored). |
+| **Polling (pull)** | Healine fetches workouts (`/v3/workouts/`) and 24/7 data (`/247samples/*`, `/247/daily-activity-statistics`) over REST for historical sync and as a fallback. |
 
 <Note>
-Webhook payloads are signed with HMAC-SHA256 over the raw request body, delivered in the `X-HMAC-SHA256-Signature` header. Open Wearables verifies this against `SUUNTO_WEBHOOK_SECRET` (which defaults to your app `SECRET_KEY`). See the configuration step below.
+Webhook payloads are signed with HMAC-SHA256 over the raw request body, delivered in the `X-HMAC-SHA256-Signature` header. Healine verifies this against `SUUNTO_WEBHOOK_SECRET` (which defaults to your app `SECRET_KEY`). See the configuration step below.
 </Note>
 
 ## What you need by the end
@@ -74,7 +73,7 @@ This company requirement applies to the **Suunto Cloud API** used here (`cloudap
   </Step>
 
   <Step title="Subscribe to the Developer API product">
-    Sign in to the [Suunto API Zone](https://apizone.suunto.com/) and open the **Developer API** product. Subscribe to it (you can name the subscription, e.g. "Open Wearables").
+    Sign in to the [Suunto API Zone](https://apizone.suunto.com/) and open the **Developer API** product. Subscribe to it (you can name the subscription, e.g. "Healine").
 
     Once the subscription is **Active**, open your **Profile → Your subscriptions** to retrieve your **subscription key**. Both a primary and a secondary key are provided - either works, and the secondary key lets you rotate without downtime.
 
@@ -86,9 +85,9 @@ This company requirement applies to the **Suunto Cloud API** used here (`cloudap
   <Step title="Configure OAuth settings">
     In your Suunto **Profile**, fill in the OAuth configuration fields:
 
-    - **App name**: The name shown to users on the consent screen (e.g. "Open Wearables")
+    - **App name**: The name shown to users on the consent screen (e.g. "Healine")
     - **Client secret**: A secret value you set for your app
-    - **Redirect URI**: Your OAuth callback URL. Open Wearables derives this from your `API_BASE_URL` as `{API_BASE_URL}/api/v1/oauth/suunto/callback`, so register that exact URL here. For local development, expose your backend with [ngrok](/dev-guides/ngrok-setup) and register e.g. `https://your-subdomain.ngrok-free.app/api/v1/oauth/suunto/callback`. In production use your public domain.
+    - **Redirect URI**: Your OAuth callback URL. Healine derives this from your `API_BASE_URL` as `{API_BASE_URL}/api/v1/oauth/suunto/callback`, so register that exact URL here. For local development, expose your backend with [ngrok](/dev-guides/ngrok-setup) and register e.g. `https://your-subdomain.ngrok-free.app/api/v1/oauth/suunto/callback`. In production use your public domain.
 
     Suunto automatically generates your **Client Id** from this configuration.
 
@@ -97,7 +96,7 @@ This company requirement applies to the **Suunto Cloud API** used here (`cloudap
     </Warning>
   </Step>
 
-  <Step title="Configure credentials in Open Wearables">
+  <Step title="Configure credentials in Healine">
     Add the following to your `.env` file:
 
 ```bash
@@ -127,7 +126,7 @@ SUUNTO_SUBSCRIPTION_KEY=private-subscription-id
   </Step>
 
   <Step title="Connect a user via OAuth">
-    With credentials configured and your Open Wearables instance running, initiate the OAuth flow.
+    With credentials configured and your Healine instance running, initiate the OAuth flow.
 
     **1. Get the authorization URL:**
 
@@ -146,7 +145,7 @@ SUUNTO_SUBSCRIPTION_KEY=private-subscription-id
 
     **2. Redirect the user** to the `authorization_url`. They will log in to Suunto and authorize your app.
 
-    **3. Suunto redirects back** to the callback URI derived from `API_BASE_URL` (`{API_BASE_URL}/api/v1/oauth/suunto/callback`). Open Wearables automatically exchanges the authorization code for access and refresh tokens, and reads the Suunto user identity from the JWT access token (`sub` and `user` claims).
+    **3. Suunto redirects back** to the callback URI derived from `API_BASE_URL` (`{API_BASE_URL}/api/v1/oauth/suunto/callback`). Healine automatically exchanges the authorization code for access and refresh tokens, and reads the Suunto user identity from the JWT access token (`sub` and `user` claims).
 
     **4. Verify the connection:**
 
@@ -171,7 +170,7 @@ SUUNTO_SUBSCRIPTION_KEY=private-subscription-id
     {API_BASE_URL}/api/v1/providers/suunto/webhooks
     ```
 
-    Suunto signs each request body with HMAC-SHA256 and sends the result in the `X-HMAC-SHA256-Signature` header. Open Wearables verifies it against `SUUNTO_WEBHOOK_SECRET` (defaulting to `SECRET_KEY`), so make sure the notification secret configured with Suunto matches that value.
+    Suunto signs each request body with HMAC-SHA256 and sends the result in the `X-HMAC-SHA256-Signature` header. Healine verifies it against `SUUNTO_WEBHOOK_SECRET` (defaulting to `SECRET_KEY`), so make sure the notification secret configured with Suunto matches that value.
 
     <Note>
     The endpoint acknowledges within Suunto's 2-second timeout and enqueues processing in the background. If webhooks aren't configured, periodic REST polling still keeps data current.
@@ -201,7 +200,7 @@ SUUNTO_SUBSCRIPTION_KEY=private-subscription-id
   </Step>
 
   <Step title="Verify the integration">
-    Once data has synced, fetch it via the Open Wearables API:
+    Once data has synced, fetch it via the Healine API:
 
     ```bash
     # Fetch workouts
@@ -247,7 +246,7 @@ If you need more throughput, request a higher tier from Suunto through the API Z
 
 <CardGroup cols={2}>
   <Card title="API Reference" icon="terminal" href="/api-reference/introduction">
-    Explore the Open Wearables API endpoints.
+    Explore the Healine API endpoints.
   </Card>
   <Card title="Coverage Matrix" icon="table" href="/providers/coverage">
     See the full data coverage comparison.
@@ -259,7 +258,7 @@ If you need more throughput, request a higher tier from Suunto through the API Z
 <Note>
 **Need Help?**
 - Join our [Discord](https://discord.gg/qrcfFnNE6H) and ask a question.
-- Check [GitHub Discussions](https://github.com/the-momentum/open-wearables/discussions).
+- Check [Healine issues](https://github.com/IYENTeam/healine/issues).
 - Check the [Suunto API Zone](https://apizone.suunto.com/) and the [How to start](https://apizone.suunto.com/how-to-start) guide.
 </Note>
 

@@ -32,7 +32,7 @@ def create_user_token(
     Tokens expire after configured time (default: 60 minutes).
 
     Args:
-        user_id: OpenWearables User ID (UUID)
+        user_id: Healine User ID (UUID)
         payload: Optional application credentials (app_id, app_secret)
         db: Database session
         developer: Optional authenticated developer (from Bearer token)

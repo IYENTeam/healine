@@ -2,11 +2,10 @@
 title: "Fitbit API Integration"
 description: "Connect Fitbit via OAuth 2.0 to sync workouts and activity. Free account required. Pull-based syncing only, no webhooks. No special developer permissions."
 keywords: ["fitbit api integration", "fitbit oauth", "fitbit health data", "fitbit api"]
-"og:title": "Fitbit API Integration | Open Wearables"
+"og:title": "Fitbit API Integration | Healine"
 "og:description": "Connect Fitbit via OAuth 2.0. Syncs workouts and activity. Free account required, pull-based syncing only."
-"og:url": "https://docs.openwearables.io/providers/fitbit-api-integration"
 "og:type": "article"
-"twitter:title": "Fitbit API Integration | Open Wearables"
+"twitter:title": "Fitbit API Integration | Healine"
 "twitter:description": "Connect Fitbit via OAuth 2.0. Syncs workouts and activity. Free account required, pull-based syncing only."
 "twitter:card": "summary_large_image"
 ---
@@ -16,11 +15,11 @@ keywords: ["fitbit api integration", "fitbit oauth", "fitbit health data", "fitb
 
 Google is turning down the legacy Fitbit Web API: *"In September 2026, the legacy Fitbit Web API will be turned down and will no longer sync data to or from Fitbit users"* ([About the Google Health API](https://developers.google.com/health/about), Google for Developers). Integrations must move to the [Google Health API](https://developers.google.com/health/migration) with Google OAuth 2.0 - existing Fitbit access and refresh tokens cannot be carried over, so every user has to re-consent.
 
-Because of this, Open Wearables **is no longer developing the Fitbit integration**. It stays available and supported as-is for now, but no new data types or features will be added. For Fitbit data going forward, use the [Google Health API integration](/providers/google-api-integration) - it already surfaces Fitbit as a source.
+Because of this, Healine **is no longer developing the Fitbit integration**. It stays available and supported as-is for now, but no new data types or features will be added. For Fitbit data going forward, use the [Google Health API integration](/providers/google-api-integration) - it already surfaces Fitbit as a source.
 </Warning>
 
 <Note>
-**Need help with your Fitbit integration?** Pop into our [Discord](https://discord.gg/qrcfFnNE6H) if you have questions or want to discover how Open Wearables can solve your problems.
+**Need help with your Fitbit integration?** Pop into our [Discord](https://discord.gg/qrcfFnNE6H) if you have questions or want to discover how Healine can solve your problems.
 </Note>
 
 ## Overview
@@ -37,14 +36,14 @@ Fitbit provides access to workout/activity data from Fitbit devices through the 
 | Daily activity summary | Available via API - not implemented, not planned |
 
 <Info>
-Open Wearables syncs **workout/activity data** from Fitbit using the Activities List API. Heart rate, sleep, and daily activity summary will not be added - see the sunset notice above. Those data types are available for Fitbit users through the [Google Health API integration](/providers/google-api-integration).
+Healine syncs **workout/activity data** from Fitbit using the Activities List API. Heart rate, sleep, and daily activity summary will not be added - see the sunset notice above. Those data types are available for Fitbit users through the [Google Health API integration](/providers/google-api-integration).
 </Info>
 
 ### Data delivery
 
 | Method | Description |
 |--------|-------------|
-| **Polling (pull)** | Open Wearables periodically fetches activity data via the Fitbit Web API (via Celery Beat) |
+| **Polling (pull)** | Healine periodically fetches activity data via the Fitbit Web API (via Celery Beat) |
 
 <Note>
 Fitbit Subscription (webhook) support is out of scope for the current integration and remains tracked in [GitHub issue #226](https://github.com/the-momentum/open-wearables/issues/226). All sync is currently polling-based.
@@ -73,7 +72,7 @@ Fitbit Subscription (webhook) support is out of scope for the current integratio
 
     Fill in the registration form:
 
-    - **Application Name**: Your app name (e.g. "Open Wearables")
+    - **Application Name**: Your app name (e.g. "Healine")
     - **Description**: Brief description of your application
     - **Application Website URL**: Your app's website (can be `http://localhost:3000` for local dev)
     - **Organization**: Your organization name
@@ -91,7 +90,7 @@ Fitbit Subscription (webhook) support is out of scope for the current integratio
     </Warning>
   </Step>
 
-  <Step title="Configure credentials in Open Wearables">
+  <Step title="Configure credentials in Healine">
     Add the following to your `.env` file:
 
 ```bash
@@ -118,7 +117,7 @@ FITBIT_DEFAULT_SCOPE="activity heartrate sleep profile"
   </Step>
 
   <Step title="Connect a user via OAuth">
-    With credentials configured and your Open Wearables instance running, initiate the OAuth flow to connect a user's Fitbit account.
+    With credentials configured and your Healine instance running, initiate the OAuth flow to connect a user's Fitbit account.
 
     **1. Get the authorization URL:**
 
@@ -137,7 +136,7 @@ FITBIT_DEFAULT_SCOPE="activity heartrate sleep profile"
 
     **2. Redirect the user** to the `authorization_url`. They will log in to Fitbit and authorize your app.
 
-    **3. Fitbit redirects back** to the callback URI configured in your `.env` (`FITBIT_REDIRECT_URI`). Open Wearables automatically exchanges the authorization code for access tokens.
+    **3. Fitbit redirects back** to the callback URI configured in your `.env` (`FITBIT_REDIRECT_URI`). Healine automatically exchanges the authorization code for access tokens.
 
     **4. Verify the connection** was created:
 
@@ -163,12 +162,12 @@ FITBIT_DEFAULT_SCOPE="activity heartrate sleep profile"
     ```
 
     <Note>
-    By default, Open Wearables syncs activities from the last 30 days. You can specify a custom date range using the `start_date` and `end_date` query parameters.
+    By default, Healine syncs activities from the last 30 days. You can specify a custom date range using the `start_date` and `end_date` query parameters.
     </Note>
   </Step>
 
   <Step title="Verify the integration">
-    Once data has synced, fetch it via the Open Wearables API:
+    Once data has synced, fetch it via the Healine API:
 
     ```bash
     # Fetch workouts
@@ -194,7 +193,7 @@ When the rate limit is exceeded, the API returns HTTP `429 Too Many Requests`. T
 
 <CardGroup cols={2}>
   <Card title="API Reference" icon="terminal" href="/api-reference/introduction">
-    Explore the Open Wearables API endpoints.
+    Explore the Healine API endpoints.
   </Card>
   <Card title="Architecture" icon="diagram" href="/architecture/system-overview">
     Understand the overall system architecture.
@@ -206,7 +205,7 @@ When the rate limit is exceeded, the API returns HTTP `429 Too Many Requests`. T
 <Note>
 **Need Help?**
 - Join our [Discord](https://discord.gg/qrcfFnNE6H) and ask a question.
-- Check [GitHub Discussions](https://github.com/the-momentum/open-wearables/discussions).
+- Check [Healine issues](https://github.com/IYENTeam/healine/issues).
 - Check the [Fitbit Web API Documentation](https://dev.fitbit.com/build/reference/web-api/).
 - Contact Fitbit developer support through the [Fitbit Developer portal](https://dev.fitbit.com).
 </Note>

@@ -31,7 +31,7 @@ class RefreshTokenService:
 
         Args:
             db_session: Database session
-            user_id: The OpenWearables User ID
+            user_id: The Healine User ID
             app_id: The application ID that created the token
 
         Returns:

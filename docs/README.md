@@ -1,4 +1,4 @@
-# Open Wearables Documentation
+# Healine Documentation
 
 This directory houses the documentation site built with Mintlify.
 

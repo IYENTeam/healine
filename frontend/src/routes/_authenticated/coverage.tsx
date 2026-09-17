@@ -43,8 +43,8 @@ function CoveragePage() {
           <p>
             This matrix shows provider{' '}
             <span className="text-zinc-200">capabilities</span> — the data types
-            Open Wearables can ingest from each provider. A green dot means the
-            type is supported and normalized in code; it does{' '}
+            Healine can ingest from each provider. A green dot means the type is
+            supported and normalized in code; it does{' '}
             <span className="text-zinc-200">not</span> reflect what has actually
             been synced for your users in this instance.
           </p>

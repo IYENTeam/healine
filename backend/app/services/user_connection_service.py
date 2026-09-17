@@ -60,7 +60,7 @@ class UserConnectionService(
         user_id: UUID,
         provider_pairs: list[tuple[str, str]],
     ) -> dict[tuple[str, str], list[UUID]]:
-        """Return other active OW users sharing the same external account, grouped by (provider, provider_user_id)."""
+        """Return active Healine users sharing an external account, grouped by (provider, provider_user_id)."""
         return self.crud.get_linked_user_ids(db_session, user_id, provider_pairs)
 
     def ensure_sdk_connection(self, db_session: DbSession, user_id: UUID, provider: str) -> UserConnection:

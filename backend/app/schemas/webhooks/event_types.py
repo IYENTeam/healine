@@ -1,4 +1,4 @@
-"""Webhook event types emitted by Open Wearables.
+"""Webhook event types emitted by Healine.
 
 Each value follows the Svix convention: ``<resource>.<action>``.
 Keep in sync with the init script that registers them with the Svix server.

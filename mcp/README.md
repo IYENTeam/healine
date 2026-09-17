@@ -1,6 +1,6 @@
-# Open Wearables MCP Server
+# Healine MCP Server
 
-MCP (Model Context Protocol) server for Open Wearables, enabling AI assistants like Claude Desktop and Cursor to query wearable health data through natural language.
+MCP (Model Context Protocol) server for Healine, enabling AI assistants like Claude Desktop and Cursor to query wearable health data through natural language.
 
 ## Features
 
@@ -14,8 +14,8 @@ MCP (Model Context Protocol) server for Open Wearables, enabling AI assistants l
 ## Prerequisites
 
 - [uv](https://docs.astral.sh/uv/) **>=0.9.17** package manager — upgrade with `uv self update` if needed ([docs](https://docs.astral.sh/uv/getting-started/installation/#upgrading-uv))
-- Running Open Wearables backend (or access to a deployed instance)
-- Valid Open Wearables API key
+- Running Healine backend (or access to a deployed instance)
+- Valid Healine API key
 
 ## Quick Start
 
@@ -52,13 +52,13 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 ```json
 {
   "mcpServers": {
-    "open-wearables": {
+    "healine": {
       "command": "uv",
       "args": [
         "run",
         "--frozen",
         "--directory",
-        "/path/to/open-wearables/mcp",
+        "/path/to/healine/mcp",
         "start"
       ]
     }
@@ -66,7 +66,7 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 }
 ```
 
-Replace `/path/to/open-wearables/mcp` with the actual path to this directory.
+Replace `/path/to/healine/mcp` with the actual path to this directory.
 
 ## Cursor Configuration
 
@@ -75,13 +75,13 @@ Add to Cursor MCP settings:
 ```json
 {
   "mcpServers": {
-    "open-wearables": {
+    "healine": {
       "command": "uv",
       "args": [
         "run",
         "--frozen",
         "--directory",
-        "/path/to/open-wearables/mcp",
+        "/path/to/healine/mcp",
         "start"
       ]
     }
@@ -227,7 +227,7 @@ npx @mcpjam/inspector@latest
 
 Then configure the connection:
 - **Command**: `uv`
-- **Arguments**: `run --frozen --directory /path/to/open-wearables/mcp start`
+- **Arguments**: `run --frozen --directory /path/to/healine/mcp start`
 
 ### Code quality
 
@@ -240,7 +240,7 @@ uv run pre-commit run --all-files
 ### "Invalid API key" error
 
 Ensure your `OPEN_WEARABLES_API_KEY` in `config/.env` is valid. You can get an API key from:
-1. The Open Wearables developer portal
+1. The Healine developer portal
 2. Or via the backend admin panel at `/api/v1/developer/api-keys`
 
 ### "Connection refused" error

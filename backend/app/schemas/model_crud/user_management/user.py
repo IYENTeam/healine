@@ -22,7 +22,7 @@ class UserInclude(StrEnum):
 
 _EXTERNAL_USER_ID_DEPRECATION = (
     "Deprecated: no data-fetching endpoint (timeseries, workouts, sleep, summaries, health-scores, etc.) "
-    "accepts external_user_id - they all require the Open Wearables UUID. This field was added early in the "
+    "accepts external_user_id - they all require the Healine UUID. This field was added early in the "
     "project but never wired into those endpoints, so it only works as a filter on GET /users. Store the "
     "UUID returned by POST /users in your own system instead."
 )

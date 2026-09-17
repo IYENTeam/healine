@@ -5,7 +5,7 @@ import logging
 from fastmcp import FastMCP
 
 from app.services.api_client import client
-from app.services.exceptions import OpenWearablesError
+from app.services.exceptions import HealineError
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +18,7 @@ async def get_users(search: str | None = None, limit: int = 10) -> dict:
     """
     Get users accessible via the configured API key.
 
-    Use this tool to discover available Open Wearables users before querying their health data.
+    Use this tool to discover available Healine users before querying their health data.
     The API key determines which users are visible (personal, team, or enterprise scope).
 
     Args:
@@ -70,7 +70,7 @@ async def get_users(search: str | None = None, limit: int = 10) -> dict:
             "total": response.get("total", len(users)),
         }
 
-    except OpenWearablesError as e:
+    except HealineError as e:
         logger.error(f"API error in get_users: {e}")
         return {"error": str(e), "users": [], "total": 0}
     except Exception as e:

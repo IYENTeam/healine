@@ -1,11 +1,11 @@
 # Pull Request Guidelines
 
-This guide covers how to submit pull requests to Open Wearables.
+This guide covers how to submit pull requests to Healine.
 
 ## Before You Start
 
-1. Search [existing PRs](https://github.com/the-momentum/open-wearables/pulls) to avoid duplicating effort
-2. Check [existing issues](https://github.com/the-momentum/open-wearables/issues) for related discussions
+1. Search [existing PRs](https://github.com/IYENTeam/healine/pulls) to avoid duplicating effort
+2. Check [existing issues](https://github.com/IYENTeam/healine/issues) for related discussions
 3. For major changes, open an issue first to discuss the approach
 
 ## Commit Message Convention

@@ -1,6 +1,6 @@
-"""Shared sync coordination for linked OW accounts.
+"""Shared sync coordination for linked Healine accounts.
 
-When multiple OpenWearables profiles share the same external provider
+When multiple Healine profiles share the same external provider
 account (e.g. one Garmin account linked to N testers), only one profile
 should make the API call or accept the inbound webhook.  All others are
 *secondaries*: they receive a fan-out of the already-parsed data and a

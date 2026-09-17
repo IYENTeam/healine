@@ -1,6 +1,6 @@
-# Open Wearables Platform - Frontend
+# Healine Platform - Frontend
 
-Modern web application built with TanStack Start for the Open Wearables Platform—a unified API for health data aggregation and automation.
+Modern web application built with TanStack Start for the Healine Platform—a unified API for health data aggregation and automation.
 
 ## Tech Stack
 
@@ -205,9 +205,9 @@ The server listens on port 3000 and serves both the SSR frontend and its static 
 
 ## Deployment
 
-The frontend is a server-rendered Node.js application, not a static site. Deploy it either as the published Docker image (`themomentum/open-wearables-frontend`) or on any Node.js host running `.output/server/index.mjs`.
+The frontend is a server-rendered Node.js application. Build a Healine Docker image from `frontend/Dockerfile`, or deploy to a Node.js host running `.output/server/index.mjs`.
 
-The backend API URL is read from the `VITE_API_URL` environment variable at runtime, so the same build works against any backend. See [Deploying with Docker](https://openwearables.io/docs/deployment/docker) for details.
+The backend API URL is read from the `VITE_API_URL` environment variable at runtime, so the same build works against any backend. See [Deploying with Docker](../docs/deployment/docker.mdx) for details.
 
 ## Contributing
 

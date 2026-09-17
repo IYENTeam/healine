@@ -2,22 +2,21 @@
 title: "Google Health API Integration"
 description: "Connect Google Health via OAuth 2.0 to sync 24/7 metrics, workouts, and sleep. Choose reconcile (app-accurate merged totals) or list (per-device) fetch modes. Notify-only webhooks supported."
 keywords: ["google health api integration", "google health oauth", "google health connect api", "reconcile vs list", "google health webhooks"]
-"og:title": "Google Health API Integration | Open Wearables"
+"og:title": "Google Health API Integration | Healine"
 "og:description": "Connect Google Health via OAuth 2.0. Syncs 24/7 metrics, workouts, and sleep. Reconcile or list fetch modes; notify-only webhooks."
-"og:url": "https://docs.openwearables.io/providers/google-api-integration"
 "og:type": "article"
-"twitter:title": "Google Health API Integration | Open Wearables"
+"twitter:title": "Google Health API Integration | Healine"
 "twitter:description": "Connect Google Health via OAuth 2.0. Reconcile or list fetch modes; notify-only webhooks."
 "twitter:card": "summary_large_image"
 ---
 
 <Note>
-**Need help with your Google Health integration?** Pop into our [Discord](https://discord.gg/qrcfFnNE6H) if you have questions or want to discover how Open Wearables can solve your problems.
+**Need help with your Google Health integration?** Pop into our [Discord](https://discord.gg/qrcfFnNE6H) if you have questions or want to discover how Healine can solve your problems.
 </Note>
 
 ## Overview
 
-Google Health data reaches Open Wearables through two independent paths, each its own provider:
+Google Health data reaches Healine through two independent paths, each its own provider:
 
 - **Health Connect (mobile SDK)** — provider `health_connect`. Data pushed from an Android device via the Mobile SDK. See the [Android SDK guide](/sdk/android/integration).
 - **Google Health API (cloud OAuth)** — provider `google_health`, this guide. A server-side OAuth 2.0 flow against the [Google Health API](https://developers.google.com/health) that lets you connect a user's Google account and pull their data over REST, plus receive notify-only webhooks.
@@ -45,12 +44,12 @@ The Google Health API is an **aggregation layer**: it surfaces data from *every*
 
 | Method | Description |
 |--------|-------------|
-| **Polling (pull)** | Open Wearables periodically fetches data via the Health API (Celery Beat), driven by the [fetch mode](#data-granularity-and-fetch-modes) below. |
-| **Webhooks (notify-only)** | Google sends a lightweight ping naming the changed `dataType` and time intervals; Open Wearables then fetches the changed data over REST. Requires a project-level [subscriber registration](#webhook-subscriber-registration). |
+| **Polling (pull)** | Healine periodically fetches data via the Health API (Celery Beat), driven by the [fetch mode](#data-granularity-and-fetch-modes) below. |
+| **Webhooks (notify-only)** | Google sends a lightweight ping naming the changed `dataType` and time intervals; Healine then fetches the changed data over REST. Requires a project-level [subscriber registration](#webhook-subscriber-registration). |
 
 ## Data granularity and fetch modes
 
-The Health API exposes the same underlying data through three different operations. Open Wearables picks one per the `DEFAULT_DATA_GRANULARITY` setting, and — at the finest granularity — the `GOOGLE_USE_RECONCILE` flag.
+The Health API exposes the same underlying data through three different operations. Healine picks one per the `DEFAULT_DATA_GRANULARITY` setting, and — at the finest granularity — the `GOOGLE_USE_RECONCILE` flag.
 
 | Granularity | Operation | Resolution | Cross-source | Device attribution |
 |-------------|-----------|------------|--------------|--------------------|
@@ -67,7 +66,7 @@ The Health API exposes the same underlying data through three different operatio
 A user commonly has the **same activity reported by multiple sources** (e.g. the phone's pedometer *and* the Fitbit app both counting steps). The two modes handle that overlap differently:
 
 - **`reconcile` (default)** returns **one merged stream**, deduplicated across all sources at the interval level — exactly what the native Google Health / Fitbit app displays. There is no single device behind a merged value, so reconciled points carry **no device attribution** (`device_model` is empty).
-- **`list`** returns the **raw per-source points**, each tagged with its originating device. This preserves device attribution but stores overlapping sources separately; Open Wearables then **deduplicates on read** by source priority (it does *not* sum them).
+- **`list`** returns the **raw per-source points**, each tagged with its originating device. This preserves device attribution but stores overlapping sources separately; Healine then **deduplicates on read** by source priority (it does *not* sum them).
 
 A concrete example — steps for one day for a user tracked by both their phone (Health Connect) and Fitbit MobileTrack:
 
@@ -111,7 +110,7 @@ Choose `list` (`GOOGLE_USE_RECONCILE=false`) only when you specifically need per
 
     - `http://localhost:8000/api/v1/oauth/google_health/callback`
 
-    Then set `GOOGLE_LEGACY_OAUTH_PATH=false` so Open Wearables sends that URI. New integrations should always use this path.
+    Then set `GOOGLE_LEGACY_OAUTH_PATH=false` so Healine sends that URI. New integrations should always use this path.
 
     <Warning>
     **Upgrading from before the provider split?** This provider was reachable at `/oauth/google/` back then, and the flag defaults to `true` so your registered OAuth client keeps working untouched. That default is a compatibility patch, not the intended configuration — it is removed in 1.0. Register the `google_health` URI above, set the flag to `false`, and you are on the supported path. Google accepts several redirect URIs, so both can be registered while you migrate.
@@ -122,7 +121,7 @@ Choose `list` (`GOOGLE_USE_RECONCILE=false`) only when you specifically need per
     </Warning>
   </Step>
 
-  <Step title="Configure credentials in Open Wearables">
+  <Step title="Configure credentials in Healine">
     Add the following to your `.env` file:
 
 ```bash
@@ -153,7 +152,7 @@ GOOGLE_USE_RECONCILE=true
     With credentials configured and your instance running, initiate the OAuth flow.
 
     <Tip>
-    **Using the Open Wearables frontend?** You don't need any of the curls below — open the connect view and click **Connect** on Google Health. The frontend runs this whole authorize → consent → callback → verify flow for you. The steps below are for integrating directly against the API.
+    **Using the Healine frontend?** You don't need any of the curls below — open the connect view and click **Connect** on Google Health. The frontend runs this whole authorize → consent → callback → verify flow for you. The steps below are for integrating directly against the API.
     </Tip>
 
     **1. Get the authorization URL:**
@@ -165,7 +164,7 @@ GOOGLE_USE_RECONCILE=true
 
     **2. Redirect the user** to the returned `authorization_url`. They log in to Google and grant consent.
 
-    **3. Google redirects back** to `{API_BASE_URL}/api/v1/oauth/google_health/callback`; Open Wearables exchanges the code for tokens and stores the connection. It also resolves the user's stable `healthUserId` (via the Health API identity endpoint) as the connection's provider user id — this is what inbound webhooks are matched against.
+    **3. Google redirects back** to `{API_BASE_URL}/api/v1/oauth/google_health/callback`; Healine exchanges the code for tokens and stores the connection. It also resolves the user's stable `healthUserId` (via the Health API identity endpoint) as the connection's provider user id — this is what inbound webhooks are matched against.
 
     **4. Verify the connection:**
 
@@ -200,11 +199,11 @@ GOOGLE_USE_RECONCILE=true
 
 ## Webhooks
 
-Google Health webhooks are **notify-only**: each notification names the changed `dataType`, `operation` (`UPSERT`/`DELETE`), and the physical-time `intervals` that changed — but carries no data. Open Wearables verifies the request, then fetches the changed data over REST for those intervals.
+Google Health webhooks are **notify-only**: each notification names the changed `dataType`, `operation` (`UPSERT`/`DELETE`), and the physical-time `intervals` that changed — but carries no data. Healine verifies the request, then fetches the changed data over REST for those intervals.
 
 Two distinct secrets are involved:
 
-- **`GOOGLE_WEBHOOK_SECRET`** — a bearer token you register with Google that it echoes back in the `Authorization` header of every notification, so Open Wearables can verify the ping is genuine. Defaults to `SECRET_KEY` if unset.
+- **`GOOGLE_WEBHOOK_SECRET`** — a bearer token you register with Google that it echoes back in the `Authorization` header of every notification, so Healine can verify the ping is genuine. Defaults to `SECRET_KEY` if unset.
 - **Service-account credentials** — used only to *register* the subscriber (a project-level admin call). Not involved in receiving notifications.
 
 <Info>
@@ -216,7 +215,7 @@ Receiving and processing webhooks needs only `GOOGLE_WEBHOOK_SECRET`. The servic
 Subscribers live at the **project** level (`POST /v4/projects/{project}/subscribers`), so registration authenticates as the project via a **service account**, not a user's OAuth token.
 
 <Warning>
-`gcloud` commands need the project **ID** (e.g. `open-wearables-prod`). The `GOOGLE_PROJECT_ID` env var, however, needs the project **number** (e.g. `123456789012`) — the subscriber API requires the number in its path.
+`gcloud` commands need the project **ID** (e.g. `healine-prod`). The `GOOGLE_PROJECT_ID` env var, however, needs the project **number** (e.g. `123456789012`) — the subscriber API requires the number in its path.
 </Warning>
 
 <Steps>
@@ -286,7 +285,7 @@ update / delete) won't work — they require project credentials. Use the comman
 <Warning>
 The `endpointAuthorization.secret` you set here **must** equal `"Bearer "` + the app's
 `GOOGLE_WEBHOOK_SECRET` (which defaults to `SECRET_KEY`). If they don't match, every
-notification fails signature verification and Open Wearables returns 401.
+notification fails signature verification and Healine returns 401.
 </Warning>
 
 All calls authenticate with your own gcloud identity, which must hold the Health API
@@ -338,7 +337,7 @@ the app doesn't handle just means its notifications are ignored.
 
 <CardGroup cols={2}>
   <Card title="API Reference" icon="terminal" href="/api-reference/introduction">
-    Explore the Open Wearables API endpoints.
+    Explore the Healine API endpoints.
   </Card>
   <Card title="Supported Providers" icon="list" href="/providers/supported">
     See all supported providers.
@@ -350,6 +349,6 @@ the app doesn't handle just means its notifications are ignored.
 <Note>
 **Need Help?**
 - Join our [Discord](https://discord.gg/qrcfFnNE6H) and ask a question.
-- Check [GitHub Discussions](https://github.com/the-momentum/open-wearables/discussions).
+- Check [Healine issues](https://github.com/IYENTeam/healine/issues).
 - Check the [Google Health API Documentation](https://developers.google.com/health).
 </Note>

@@ -6,7 +6,7 @@ from datetime import date, datetime
 from fastmcp import FastMCP
 
 from app.services.api_client import client
-from app.services.exceptions import NotFoundError, OpenWearablesError
+from app.services.exceptions import HealineError, NotFoundError
 from app.utils import normalize_datetime
 
 logger = logging.getLogger(__name__)
@@ -257,7 +257,7 @@ async def get_menstrual_cycles(
             "truncated": truncated,
         }
 
-    except OpenWearablesError as e:
+    except HealineError as e:
         logger.error(f"API error in get_menstrual_cycles: {e}")
         return {"error": str(e)}
     except Exception as e:

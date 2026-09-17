@@ -1,4 +1,4 @@
-"""HTTP client for Open Wearables backend API."""
+"""HTTP client for Healine backend API."""
 
 import logging
 from typing import Any
@@ -11,8 +11,8 @@ from app.services.exceptions import AuthenticationError, ConfigurationError, Not
 logger = logging.getLogger(__name__)
 
 
-class OpenWearablesClient:
-    """Client for interacting with Open Wearables REST API."""
+class HealineClient:
+    """Client for interacting with Healine REST API."""
 
     def __init__(self) -> None:
         self.base_url = settings.open_wearables_api_url.rstrip("/")
@@ -236,4 +236,4 @@ class OpenWearablesClient:
 
 
 # Singleton instance
-client = OpenWearablesClient()
+client = HealineClient()

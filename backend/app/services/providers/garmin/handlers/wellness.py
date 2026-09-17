@@ -33,7 +33,7 @@ def process_wellness_items(
 
     Detects PING (items have ``callbackURL``) vs PUSH (inline data) per item.
     Groups resolved records by user_id before calling ``process_items_batch``
-    to minimise DB round-trips.  All OW profiles sharing a Garmin account
+    to minimise DB round-trips.  All Healine profiles sharing a Garmin account
     receive the data; the first connection per garmin_user_id is primary
     (WEBHOOK source), any others are secondaries (LINKED_ACCOUNT source).
 

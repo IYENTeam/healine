@@ -1,1 +1,1 @@
-# Tests package for Open Wearables backend
+# Tests package for Healine backend

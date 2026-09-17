@@ -4,18 +4,12 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useAuth } from '@/hooks/use-auth';
 import { isAuthenticated } from '@/lib/auth/session';
+import { BrandLogo } from '@/components/common/brand-logo';
 import {
   resetPasswordSchema,
   type ResetPasswordFormData,
 } from '@/lib/validation/auth.schemas';
-import {
-  Activity,
-  Eye,
-  EyeOff,
-  AlertCircle,
-  ArrowLeft,
-  Loader2,
-} from 'lucide-react';
+import { Eye, EyeOff, AlertCircle, ArrowLeft, Loader2 } from 'lucide-react';
 import { DEFAULT_REDIRECTS, ROUTES } from '@/lib/constants/routes';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -67,14 +61,7 @@ function ResetPasswordPage() {
 
         <div className="w-full max-w-md bg-black border border-zinc-900/80 rounded-2xl overflow-hidden shadow-[0_0_50px_-12px_rgba(0,0,0,0.8)] relative z-10 backdrop-blur-sm">
           <div className="p-8 border-b border-zinc-900">
-            <div className="flex items-center gap-2 mb-8">
-              <div className="w-6 h-6 bg-white rounded flex items-center justify-center">
-                <Activity className="text-black w-4 h-4" />
-              </div>
-              <span className="text-sm font-medium text-white tracking-tight uppercase">
-                Open Wearables
-              </span>
-            </div>
+            <BrandLogo className="mb-8" />
 
             <div className="text-center py-4">
               <div className="w-16 h-16 mx-auto mb-6 bg-red-500/20 rounded-full flex items-center justify-center">
@@ -120,14 +107,7 @@ function ResetPasswordPage() {
 
       <div className="w-full max-w-md bg-black border border-zinc-900/80 rounded-2xl overflow-hidden shadow-[0_0_50px_-12px_rgba(0,0,0,0.8)] relative z-10 backdrop-blur-sm">
         <div className="p-8 border-b border-zinc-900">
-          <div className="flex items-center gap-2 mb-8">
-            <div className="w-6 h-6 bg-white rounded flex items-center justify-center">
-              <Activity className="text-black w-4 h-4" />
-            </div>
-            <span className="text-sm font-medium text-white tracking-tight uppercase">
-              Open Wearables
-            </span>
-          </div>
+          <BrandLogo className="mb-8" />
 
           <h1 className="text-2xl font-medium tracking-tight text-white">
             Set New Password

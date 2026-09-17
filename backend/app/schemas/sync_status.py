@@ -25,7 +25,7 @@ class SyncSource(StrEnum):
     BACKFILL = "backfill"  # Garmin webhook-based historical backfill
     XML_IMPORT = "xml_import"  # Apple Health XML upload
     LINKED_ACCOUNT = (
-        "linked_account"  # Data received via fan-out from another OW profile sharing the same provider account
+        "linked_account"  # Data received via fan-out from another Healine profile sharing the same provider account
     )
 
 
@@ -121,7 +121,7 @@ class SyncStatusEvent(BaseModel):
     error: str | None = None
     primary_user_id: UUID | None = Field(
         default=None,
-        description="For LINKED_ACCOUNT events: the OW user whose sync run produced this data.",
+        description="For LINKED_ACCOUNT events: the Healine user whose sync run produced this data.",
     )
     metadata: dict[str, Any] = Field(default_factory=dict)
     # The span of data the run was asked to cover, not when it ran.

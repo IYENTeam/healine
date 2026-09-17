@@ -118,7 +118,7 @@ export function WebhookForm({
         <Input
           id="webhook-url"
           type="url"
-          placeholder="https://example.com/webhooks/openwearables"
+          placeholder="https://example.com/webhooks/healine"
           {...form.register('url')}
           className="bg-muted border-border"
         />

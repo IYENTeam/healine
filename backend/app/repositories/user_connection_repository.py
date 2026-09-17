@@ -147,7 +147,7 @@ class UserConnectionRepository(CrudRepository[UserConnection, UserConnectionCrea
         """Get all active connections sharing the same external provider account.
 
         Used for multi-account sync fan-out: one provider account connected to
-        several OpenWearables profiles.
+        several Healine profiles.
         """
         return self._active_by_provider_external_id(db_session, provider, provider_user_id).all()
 
@@ -217,7 +217,7 @@ class UserConnectionRepository(CrudRepository[UserConnection, UserConnectionCrea
         exclude_user_id: UUID,
         provider_pairs: list[tuple[str, str]],
     ) -> dict[tuple[str, str], list[UUID]]:
-        """For a list of (provider, provider_user_id) pairs, return other active OW users
+        """For a list of (provider, provider_user_id) pairs, return other active Healine users
         sharing the same external account, grouped by pair."""
         if not provider_pairs:
             return {}

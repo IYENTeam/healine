@@ -430,7 +430,7 @@ function ConnectionCardComponent({
                           className="max-w-xs bg-zinc-900 border border-zinc-700 shadow-xl"
                         >
                           <p className="text-[10px] font-medium text-zinc-500 mb-1.5 uppercase tracking-wide">
-                            Other linked OW accounts
+                            Other linked Healine accounts
                           </p>
                           <div className="flex flex-wrap gap-1">
                             {connection.linked_user_ids.map((uid) => (

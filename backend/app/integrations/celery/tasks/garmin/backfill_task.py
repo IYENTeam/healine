@@ -169,7 +169,7 @@ def start_full_backfill(user_id: str) -> dict[str, Any]:
 
     trace_id = set_trace_id(user_id)
 
-    # If this Garmin account is shared across multiple OW profiles, only one
+    # If this Garmin account is shared across multiple Healine profiles, only one
     # profile should make the API calls.  Others register as secondaries and
     # receive data via webhook fan-out (activities.py / wellness.py).
     if connection.provider_user_id:
@@ -194,7 +194,7 @@ def start_full_backfill(user_id: str) -> dict[str, Any]:
                 SyncSource.LINKED_ACCOUNT,
                 run_id=f"garmin_backfill_{user_id}_{trace_id}",
                 scope=SyncScope.HISTORICAL,
-                message="Garmin backfill running via linked OW profile",
+                message="Garmin backfill running via linked Healine profile",
                 primary_user_id=existing_primary,
                 metadata={
                     "trace_id": trace_id,
@@ -207,7 +207,7 @@ def start_full_backfill(user_id: str) -> dict[str, Any]:
         store_primary_token("garmin", connection.provider_user_id, UUID(user_id), shared_token, scope="backfill")
         get_redis_client().setex(_get_key(user_id, "shared_provider_user_id"), REDIS_TTL, connection.provider_user_id)
 
-        # Proactively emit emit_sync_started(LINKED_ACCOUNT) for every other OW profile sharing this
+        # Proactively emit emit_sync_started(LINKED_ACCOUNT) for every other Healine profile sharing this
         # Garmin account so they show sync activity without needing to trigger manually.
         # Only notify profiles that haven't already self-registered (they'll have a trace_id
         # from their own start_full_backfill call in that case).
@@ -232,7 +232,7 @@ def start_full_backfill(user_id: str) -> dict[str, Any]:
                     SyncSource.LINKED_ACCOUNT,
                     run_id=f"garmin_backfill_{conn.user_id}_{sec_trace_id}",
                     scope=SyncScope.HISTORICAL,
-                    message="Garmin backfill in progress via linked OW profile",
+                    message="Garmin backfill in progress via linked Healine profile",
                     primary_user_id=UUID(user_id),
                     metadata={
                         "trace_id": sec_trace_id,
