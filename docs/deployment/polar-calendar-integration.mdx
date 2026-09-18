@@ -87,6 +87,12 @@ responses reuse the same batch. HTTP errors, empty dates, absent detailed sample
 invalid samples, and unexpected structures have distinct diagnostics. Missing
 samples never become zero-valued observations.
 
+The live Polar REST gateway can return `heartRateSamplesPerDay` and `activityDays`
+directly at the root. Normalization accepts these observed forms as well as the
+wrapper objects in the published Swagger contract. Unknown nonempty structures
+still produce a parse error. The saved raw responses make it possible to repair
+and replay a shape mismatch without another authorization or provider request.
+
 Calendar queries use the latest successful snapshot per date/type, with diagnostics
 from the latest fetch. A later empty or failed response retains earlier observations.
 Replaying an older response cannot erase that fallback or overwrite newer records.

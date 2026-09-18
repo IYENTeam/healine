@@ -102,7 +102,7 @@ function fetchSleepRange_(from, to) {
 function extractHeartRateSamples_(response) {
   if (!response) return [];
   var container = response.continuousSamples ||
-    (response.data && response.data.continuousSamples) || response;
+    (response.data && (response.data.continuousSamples || response.data)) || response;
   var days = container.heartRateSamplesPerDay || [];
   var output = [];
 
@@ -126,7 +126,7 @@ function extractHeartRateSamples_(response) {
 
 function extractActivityData_(response) {
   var container = response && (response.activities ||
-    (response.data && response.data.activities));
+    (response.data && (response.data.activities || response.data)) || response);
   var days = (container && container.activityDays) || [];
   var metSamples = [];
   var stepSamples = [];

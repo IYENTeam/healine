@@ -103,12 +103,15 @@ def normalize_polar_response(kind: str, day: date, payload: dict[str, Any]) -> t
         "sleep": "nightSleeps",
         "recovery": "nightlyRechargeResults",
     }[kind]
+    day_key = {"heart_rate": "heartRateSamplesPerDay", "activity": "activityDays"}.get(kind)
+    # The live REST gateway also returns daily collections without the Swagger wrapper.
+    unwrapped_daily = day_key is not None and day_key in root and expected_key not in root
     # Empty protobuf objects can omit empty repeated fields. A nonempty, unknown
     # shape is a schema failure, not an assertion that no health data exists.
-    if root and expected_key not in root:
+    if root and expected_key not in root and not unwrapped_daily:
         raise CollectorSchemaError(f"Missing {expected_key}")
     if kind == "heart_rate":
-        container = _object(root.get("continuousSamples"))
+        container = root if unwrapped_daily else _object(root.get("continuousSamples"))
         if container and "heartRateSamplesPerDay" not in container:
             raise CollectorSchemaError("Missing continuousSamples.heartRateSamplesPerDay")
         days = _list(container.get("heartRateSamplesPerDay"))
@@ -134,7 +137,7 @@ def normalize_polar_response(kind: str, day: date, payload: dict[str, Any]) -> t
                     }
                 )
     elif kind == "activity":
-        container = _object(root.get("activities"))
+        container = root if unwrapped_daily else _object(root.get("activities"))
         if container and "activityDays" not in container:
             raise CollectorSchemaError("Missing activities.activityDays")
         days = _list(container.get("activityDays"))

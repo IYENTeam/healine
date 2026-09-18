@@ -111,3 +111,19 @@ test('temporary sleep errors retry on the next poll instead of becoming permanen
 test('multi-valued features use repeated query keys, not comma-joined strings', () => {
   assert.equal(context.encodeQuery_({features:['sleep-result','sleep-score']}),'features=sleep-result&features=sleep-score');
 });
+
+test('live REST daily collections are parsed without Swagger wrapper objects', () => {
+  const hr = { heartRateSamplesPerDay: [{date: '2026-09-18', samples: [{heartRate: 72, offsetMillis: 60000}]}] };
+  const activity = { activityDays: [{date: '2026-09-18', activitiesPerDevice: [{activitySamples: [{
+    stepSamples: {startTime: '10:00:00', interval: '60000', steps: [0, 3]},
+    metSamples: {startTime: '10:00:00', interval: '60000', mets: [1.125, 2]}
+  }]}]}] };
+  for (const envelope of [value => value, value => ({data: value})]) {
+    assert.equal(context.extractHeartRateSamples_(envelope(hr))[0].heartRate, 72);
+    const parsed = context.extractActivityData_(envelope(activity));
+    assert.deepEqual(Array.from(parsed.stepSamples, s => s.steps), [0, 3]);
+    assert.deepEqual(Array.from(parsed.metSamples, s => s.met), [1.125, 2]);
+  }
+  assert.equal(context.extractActivityData_({activities: activity, activityDays: []}).stepSamples.length, 2);
+  assert.equal(context.extractHeartRateSamples_({continuousSamples: hr, heartRateSamplesPerDay: []}).length, 1);
+});
