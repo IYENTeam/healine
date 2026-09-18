@@ -1,0 +1,106 @@
+---
+title: Collectors
+description: Pair and observe an existing Polar v4 edge collector.
+---
+
+## Authentication and routes
+
+Administrator routes accept the existing Bearer session or
+`X-Open-Wearables-API-Key`. Collector routes use `X-Healine-Collector-Key`, scoped
+to one connection and user. Collector keys cannot call administrator routes.
+
+| Method and path | Authentication | Purpose |
+| --- | --- | --- |
+| `POST /api/v1/users/{user_id}/collectors/polar-v4/pair` | Administrator | Issue a one-use code |
+| `POST /api/v1/collectors/pair` | Code in body | Exchange code for a collector key |
+| `POST /api/v1/collectors/batches` | Collector key | Store and process a daily response |
+| `GET /api/v1/collectors/observations` | Collector key | Read persisted calendar observations |
+| `GET /api/v1/users/{user_id}/collectors/polar-v4` | Administrator | Connection metadata and up to 100 recent batches |
+| `POST /api/v1/users/{user_id}/collectors/batches/{batch_id}/replay` | Administrator | Reprocess an owned stored response |
+
+Identifiers are UUIDs. Successful requests return 200. Issuance and replay have no
+request body. These routes impose no per-client rate limit; configure public
+request limits at the ingress when needed.
+
+## Pairing
+
+Issuance returns `code`, `expires_at` (UTC), and `connection_id`. The code lasts
+15 minutes and works once. POST `{"code":"the-issued-code"}` to `/collectors/pair`;
+accepted codes are 32–256 characters. Its response contains `connection_id` and
+`key`. Save the key privately: subsequent status responses do not reveal it.
+Issuing another code replaces the unused code; consuming it rotates the key.
+Invalid, expired, or consumed codes return 401.
+
+## Upload
+
+All fields below are required. Additional fields are rejected.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `kind` | string | `heart_rate`, `activity`, `sleep`, or `recovery` |
+| `date` | ISO date | Requested day, interpreted in Asia/Seoul |
+| `fetched_at` | Offset-aware ISO datetime | Retrieval time, no more than five minutes in the future |
+| `http_status` | Integer, 100–599 | Original Polar status, including errors |
+| `payload` | JSON object | Resource response, at most 10 MiB; no credentials or non-finite numbers |
+
+Illustrative empty response:
+
+```json
+{
+  "kind": "activity",
+  "date": "2026-09-17",
+  "fetched_at": "2026-09-17T08:00:00Z",
+  "http_status": 200,
+  "payload": {"activities": {"activityDays": []}}
+}
+```
+
+Upload and replay responses contain `id`, `kind`, `date`, `fetched_at`,
+`received_at`, `http_status`, `status`, `attempts`, and `diagnostics`; raw payloads
+and credentials are excluded. HTTP 200 acknowledges storage. Inspect the status
+to determine whether the response produced observations.
+
+| Status | Meaning |
+| --- | --- |
+| `pending` | Stored, processing not completed |
+| `processed` | Valid observations persisted |
+| `empty` | Recognized response without observations |
+| `provider_error` | Polar returned a status other than 200 |
+| `parse_error` | Unexpected structure or only invalid observations |
+| `processing_error` | Internal failure; raw input available for retry |
+| `superseded` | An older unsuccessful batch skipped because a newer one exists |
+
+Diagnostics include reason `code`, source/rejection counts, and normalized counts
+where applicable. The example above produces `status: "empty"` and code `no_days`;
+this does not mean zero steps.
+
+## Observations and status
+
+`GET /collectors/observations?from=2026-09-17&to=2026-09-18` takes required ISO dates,
+with inclusive start, exclusive end, and a 1–15 day range. It returns arrays named
+`heartRateSamples`, `metSamples`, `stepSamples`, `nightlyRecharges`, and `sleeps`,
+plus `sleepAccess`, `diagnostics`, and `source: "healine-platform"`.
+
+Samples use epoch milliseconds in `timestampMs`; activity vectors also include
+`intervalMs`. Sleep uses `startMs`, `endMs`, elapsed `durationMinutes`, and optional
+Polar `score`. Missing data gives empty arrays. Later empty or failed fetches retain
+previously successful observations alongside the latest diagnostics.
+
+Administrator status contains configured `public_url` and `setup_url`, nullable
+`connection_id`, `paired_at`, `last_received_at`, and `batches`. Receipt time does
+not prove normalization success. Status metadata excludes raw health payloads.
+
+## Errors
+
+| HTTP status | Meaning |
+| --- | --- |
+| 400 | Field validation failed, including invalid UUID/date, upload size, or additional fields |
+| 401 | Authentication missing/invalid, or pairing code expired/consumed |
+| 404 | User or replay batch missing, or batch belongs to a different user |
+| 413 | Request exceeds the ingress's 11 MiB limit |
+| 422 | Observation range is empty, reversed, or exceeds 15 days |
+| 500 | Request could not be durably accepted due to an internal failure |
+
+An invalid collector key returns `{"detail":"Invalid collector credential"}`.
+Retry transport failures with the same upload. Content deduplication prevents
+duplicate batches; latest retrieval time determines the current daily response.

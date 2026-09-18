@@ -1,0 +1,147 @@
+---
+title: Polar collector and calendar integration
+description: Use Healine as the operating platform for an existing Polar v4 collector.
+---
+
+## Data flow
+
+```text
+Polar AccessLink v4 → existing Apps Script → Healine DB
+                                             ↓
+Google Calendar ← existing Apps Script ← persisted observations
+```
+
+Apps Script retains Polar authorization and Calendar writes. Healine stores the
+resource responses before processing, normalizes shared health records, retries
+processing failures, and exposes collection diagnostics. Source and tests live in
+`integrations/polar-calendar/`. The inherited Polar v3 connector remains separate;
+pairing this collector does not require a second Polar connection.
+
+## Start the local platform
+
+Configure `backend/config/.env` using the [Docker guide](/deployment/docker),
+including a private `SECRET_KEY` and administrator password. Set
+`COLLECTOR_PUBLIC_URL` to the collector's fixed HTTPS origin and
+`COLLECTOR_SETUP_URL` to the existing Apps Script deployment URL ending in `/exec`.
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build \
+  db redis app celery-worker celery-beat frontend collector-ingress
+```
+
+The portal is at `http://localhost:3000`, the API at `http://localhost:8000`,
+PostgreSQL at `127.0.0.1:55432`, and Redis at `127.0.0.1:56379`. Put an HTTPS proxy
+or named tunnel in front of port 8011. That ingress allows only the three collector
+routes; keep the administrator API local. PostgreSQL and Redis use persistent
+volumes. `down -v` removes those volumes and must not be used to restart services.
+
+Temporary tunnel URLs are for connection testing: they may change and stop when
+the tunnel process exits ([Cloudflare Quick Tunnel limits](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/do-more-with-tunnels/trycloudflare/)). Ongoing operation requires a fixed address, and this
+local installation requires the Mac and Docker to remain awake and running.
+
+## Connect the existing Apps Script
+
+1. Run `integrations/polar-calendar/scripts/deploy-existing.sh --apply "Connect Healine platform"`.
+   Its validator checks the fixed project and deployment, nine-file upload set,
+   syntax, and Node tests. These deployment targets belong to the existing installation.
+2. Sign in to the local portal, open the intended user's profile, and issue a code
+   under **Polar 수집기 · 캘린더 연결**.
+3. Copy the code and open the linked Google setup screen. Confirm the server
+   address, paste the code, and submit. Codes work once and expire after 15 minutes.
+4. Apps Script privately stores the returned collector key and runs its first sync.
+
+For the configured local administrator, a private handoff can also be prepared:
+
+```bash
+backend/.venv/bin/python integrations/polar-calendar/scripts/prepare-local-pairing.py
+```
+
+Open the printed HTML file in a browser. This helper uses the administrator
+credentials in memory and writes a private file containing a short-lived pairing
+code. Rerun it if the code expires. Issuing a code leaves the old key valid;
+consuming the code rotates that key.
+
+Existing Polar credentials, the calendar, event identifiers, and personal notes
+are retained. Before pairing, standalone collection continues. After pairing,
+platform errors stop that calendar run and preserve existing entries.
+
+## Verify real operation
+
+The collector card must show a recent receipt and dated results for heart rate,
+activity, sleep, and recovery. Inspect each result and sample count: receipt alone
+does not prove successful normalization. The daily calendar description should
+include **수집 상태 · Healine에 저장된 기록**.
+
+Shared timeseries store heart rate, steps, and MET under provider `polar`, source
+`polar_accesslink_v4`. Sleep appears in sleep events; Polar sleep and recovery
+values appear in health scores. The dedicated collector card reports the edge
+connection; the legacy OAuth provider list is independent.
+
+Do not declare the transition complete until real Polar responses are stored and
+a calendar refresh reads those persisted observations.
+
+## Calendar records for later analysis
+
+The calendar is the user-facing timeline. Each observed hour contains readable
+quarter-hour measurements and a versioned `[HEALINE_DATA_V1]` JSON block with up
+to 60 observed minute buckets, explicit units, actual measurement timestamps,
+coverage and personal comparison evidence. Daily events include dated recovery,
+sleep, hourly trends and collection status. No dashboard or check-in is required.
+
+Missing measurements remain `null`; recorded zero steps remain zero, including
+hours with no heart-rate samples. Empty minutes are not interpolated. Hourly
+heart rate is the median of quarter-hour medians, and its range comes from the
+observed samples. Raw responses remain in Healine. See the
+[calendar data contract](https://github.com/IYENTeam/healine/blob/feat/polar-calendar-integration/integrations/polar-calendar/README.md#캘린더에서-후속-분석하기)
+for the fields and aggregation rules. Notes under `[내 메모]` survive updates in
+both daily and hourly events.
+
+An existing hourly event whose observations disappear from a successful snapshot
+is updated to explicit missing data, preserving its notes; a fetch error leaves
+the previous records intact. Legacy quarter-hour events are retained because
+their generated text cannot be reliably distinguished from user annotations.
+
+## Missing data, backfill, and replay
+
+Each response stores its original HTTP status and JSON body. Identical daily
+responses reuse the same batch. HTTP errors, empty dates, absent detailed samples,
+invalid samples, and unexpected structures have distinct diagnostics. Missing
+samples never become zero-valued observations.
+
+The live Polar REST gateway can return `heartRateSamplesPerDay` and `activityDays`
+directly at the root. Normalization accepts these observed forms as well as the
+wrapper objects in the published Swagger contract. Unknown nonempty structures
+still produce a parse error. The saved raw responses make it possible to repair
+and replay a shape mismatch without another authorization or provider request.
+
+Calendar queries use the latest successful snapshot per date/type, with diagnostics
+from the latest fetch. A later empty or failed response retains earlier observations.
+Replaying an older response cannot erase that fallback or overwrite newer records.
+
+The existing 15-minute trigger rereads today and yesterday. It also attempts one
+earlier day per run, starting 14 days before pairing. This historical pass advances
+through provider errors, so its completion does not guarantee fourteen complete
+days. Inspect historical diagnostics. Older calendar dates are not rewritten.
+Watch-to-Flow synchronization still determines when new data becomes available.
+
+Pending processing and internal failures retry every 60 seconds, up to five
+attempts. After fixing a parser, use **저장한 응답 재처리** on the collector card.
+Replaying an HTTP error cannot fetch fresh Polar data. See the
+[collector API](/api-reference/collectors) for authentication and response contracts.
+
+## Maintenance and limits
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.local.yml ps
+docker compose -f docker-compose.yml -f docker-compose.local.yml logs --tail=50 app celery-worker
+docker compose -f docker-compose.yml -f docker-compose.local.yml restart app celery-worker celery-beat
+```
+
+Back up PostgreSQL before upgrades. Raw batches remain until the owning user is
+deleted; automated raw-batch retention is not implemented. Shared-record retention
+does not remove these batches. Portal status responses omit raw health payloads.
+
+Dates currently use Asia/Seoul. Sleep interval length includes interruptions and
+is stored as time in bed, without inventing net sleep time. Shared timeseries are
+upserted by timestamp; omission from a later snapshot does not delete an earlier
+sample from shared history. Calendar queries use complete stored snapshots.
