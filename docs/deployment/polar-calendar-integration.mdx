@@ -80,6 +80,27 @@ connection; the legacy OAuth provider list is independent.
 Do not declare the transition complete until real Polar responses are stored and
 a calendar refresh reads those persisted observations.
 
+## Calendar records for later analysis
+
+The calendar is the user-facing timeline. Each observed hour contains readable
+quarter-hour measurements and a versioned `[HEALINE_DATA_V1]` JSON block with up
+to 60 observed minute buckets, explicit units, actual measurement timestamps,
+coverage and personal comparison evidence. Daily events include dated recovery,
+sleep, hourly trends and collection status. No dashboard or check-in is required.
+
+Missing measurements remain `null`; recorded zero steps remain zero, including
+hours with no heart-rate samples. Empty minutes are not interpolated. Hourly
+heart rate is the median of quarter-hour medians, and its range comes from the
+observed samples. Raw responses remain in Healine. See the
+[calendar data contract](https://github.com/IYENTeam/healine/blob/feat/polar-calendar-integration/integrations/polar-calendar/README.md#캘린더에서-후속-분석하기)
+for the fields and aggregation rules. Notes under `[내 메모]` survive updates in
+both daily and hourly events.
+
+An existing hourly event whose observations disappear from a successful snapshot
+is updated to explicit missing data, preserving its notes; a fetch error leaves
+the previous records intact. Legacy quarter-hour events are retained because
+their generated text cannot be reliably distinguished from user annotations.
+
 ## Missing data, backfill, and replay
 
 Each response stores its original HTTP status and JSON body. Identical daily

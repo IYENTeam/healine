@@ -108,3 +108,23 @@ test('nighttime observations do not turn sleeping heart rates into a daytime ref
   assert.equal(c.evaluateHealineWindow_(data).status,'NIGHT_OBSERVATION');
   assert.equal(c.evaluateHealineWindow_(data).isQuiet,false);
 });
+
+test('minute exports retain sample extrema and zero steps without filling gaps or double counting', () => {
+  const r = c.evaluateHealineWindow_(input({
+    heartRateSamples: [
+      {timestampMs:start+10000,heartRate:60}, {timestampMs:start+40000,heartRate:100},
+      {timestampMs:start+40000,heartRate:100}, {timestampMs:start+121000,heartRate:80},
+      {timestampMs:start+900000,heartRate:200}, {timestampMs:start+180000,heartRate:null}
+    ],
+    metSamples: [{timestampMs:start,met:1.1}],
+    stepSamples: [{timestampMs:start,steps:0}, {timestampMs:start,steps:0}]
+  }));
+  assert.deepEqual(JSON.parse(JSON.stringify(r.minuteObservations)), [
+    [start,80,60,100,2,0,1.1,1], [start+120000,80,80,80,1,null,null,0]
+  ]);
+  assert.equal(r.heartRateSampleCount,3);
+  assert.equal(r.firstHeartRateAt,start+10000);
+  assert.equal(r.lastHeartRateAt,start+121000);
+  assert.equal(r.stepMinutes,1);
+  assert.equal(r.maxMet,1.1);
+});

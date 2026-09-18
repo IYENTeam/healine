@@ -41,7 +41,10 @@ function runHealine() {
     var hours = buildHourlyObservations_(windows);
     var writtenHours = {};
     hours.forEach(function (hour) {
-      if (hour.heartRateSampleCount === 0 && !(hour.steps > 0) && hour.activeMinutes === 0) return;
+      // An empty snapshot must clear the generated data of an existing hour too.
+      // Do not create new empty events or remove their preserved personal notes.
+      if (!hasHourlyObservations_(hour) && !findHealineEvent_(events, 'healineHour', hourKey_(hour.startMs))) return;
+      hour.source = data.source || 'apps-script';
       upsertHealineHour_(calendar, events, hour);
       writtenHours[hourKey_(hour.startMs)] = true;
     });
@@ -52,12 +55,11 @@ function runHealine() {
       if (summary.sleep) upsertHealineSleep_(calendar, events, summary.sleep);
       return summary;
     });
-    var removed = cleanupLegacyHealineEvents_(events, writtenHours, HEALINE.legacyCleanupLimit);
     var stored = {
       version: HEALINE.modelVersion, completedAt: now.toISOString(),
       processedWindowCount: windows.length, hourlyRecordCount: Object.keys(writtenHours).length,
       summaryDates: dates, latestHeartRateAt: summaries[summaries.length - 1].lastHeartRateAt,
-      sleepAccess: data.sleepAccess, legacyEventsRemoved: removed,
+      sleepAccess: data.sleepAccess, legacyEventsRemoved: 0,
       source: data.source || 'apps-script',
       baselineDays: baseline && baseline.version === 2 ? Object.keys(baseline.days).length : 0
     };

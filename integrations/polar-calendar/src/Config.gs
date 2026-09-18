@@ -22,8 +22,6 @@ var HEALINE = Object.freeze({
   recentActivityMinutes: 30,
   comparisonStartHour: 8,
   comparisonEndHour: 22,
-  legacyCleanupLimit: 96,
-  eventTag: 'healineWindow',
   propertyKeys: Object.freeze({
     clientId: 'POLAR_CLIENT_ID',
     clientSecret: 'POLAR_CLIENT_SECRET',

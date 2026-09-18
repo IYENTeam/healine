@@ -8,6 +8,7 @@ function evaluateHealineWindow_(input) {
   var historyStart = start - HEALINE.recentActivityMinutes * 60000;
   var previous = validSamples_(withinWindow_(input.metSamples || [], historyStart, start), 'met', 0.1, 30);
   var metMinutes = coveredMinutes_(mets, start, end);
+  var recentMetMinutes = coveredMinutes_(previous, historyStart, start);
   var recentActive = previous.some(function (s) { return s.met >= 2; });
   var result = {
     startMs: start, endMs: end,
@@ -15,13 +16,17 @@ function evaluateHealineWindow_(input) {
     minHeartRate: hr.length ? Math.min.apply(null, hr.map(function (s) { return s.heartRate; })) : null,
     maxHeartRate: hr.length ? Math.max.apply(null, hr.map(function (s) { return s.heartRate; })) : null,
     heartRateSampleCount: hr.length,
+    firstHeartRateAt: hr.length ? hr[0].timestampMs : null,
     lastHeartRateAt: hr.length ? Math.max.apply(null, hr.map(function (s) { return s.timestampMs; })) : null,
     averageMet: mets.length ? round_(mean_(mets.map(function (s) { return s.met; })), 2) : null,
+    maxMet: mets.length ? Math.max.apply(null, mets.map(function (s) { return s.met; })) : null,
     metMinutes: metMinutes,
+    stepMinutes: coveredMinutes_(steps, start, end),
     activeMinutes: coveredMinutes_(mets.filter(function (s) { return s.met >= 2; }), start, end),
     steps: steps.length ? Math.round(steps.reduce(function (sum, s) { return sum + s.steps; }, 0)) : null,
+    minuteObservations: buildMinuteObservations_(hr, mets, steps),
     status: 'OBSERVED', baseline: null, heartRateDelta: null,
-    isQuiet: false, recentActivity: recentActive
+    isQuiet: false, recentActivity: recentActive, recentActivityMetMinutes: recentMetMinutes
   };
   var fullHr = hr.length >= HEALINE.minimumHeartRateSamples && hr[hr.length - 1].timestampMs - hr[0].timestampMs >= 5 * 60000;
   var fullActivity = metMinutes >= HEALINE.minimumMetMinutes;
@@ -38,7 +43,7 @@ function evaluateHealineWindow_(input) {
   else {
     result.isQuiet = result.averageMet < 1.5 && mets.every(function (s) { return s.met < 2; }) &&
       (result.steps === null || result.steps < 20) &&
-      coveredMinutes_(previous, historyStart, start) >= HEALINE.recentActivityMinutes * 0.8;
+      recentMetMinutes >= HEALINE.recentActivityMinutes * 0.8;
     if (result.isQuiet) {
       result.baseline = resolveBaseline_(input.baseline, start);
       result.status = result.baseline ? 'LOW_MOVEMENT' : 'BUILDING_BASELINE';
@@ -50,6 +55,27 @@ function evaluateHealineWindow_(input) {
     }
   }
   return result;
+}
+
+// Compact observed minute buckets; missing minutes are never interpolated.
+// HR distributions describe bpm samples, not beat-to-beat intervals or HRV.
+function buildMinuteObservations_(hr, mets, steps) {
+  var buckets = {};
+  [hr, mets, steps].forEach(function (samples, kind) {
+    samples.forEach(function (sample) {
+      var minute = Math.floor(sample.timestampMs / 60000) * 60000;
+      if (!buckets[minute]) buckets[minute] = [[], [], []];
+      buckets[minute][kind].push(sample);
+    });
+  });
+  return Object.keys(buckets).sort().map(function (key) {
+    var bucket = buckets[key], heart = bucket[0].map(function (s) { return s.heartRate; });
+    return [Number(key), heart.length ? round_(median_(heart), 1) : null,
+      heart.length ? Math.min.apply(null, heart) : null, heart.length ? Math.max.apply(null, heart) : null,
+      heart.length, bucket[2].length ? Math.round(bucket[2].reduce(function (sum, s) { return sum + s.steps; }, 0)) : null,
+      bucket[1].length ? round_(mean_(bucket[1].map(function (s) { return s.met; })), 2) : null,
+      bucket[1].length];
+  });
 }
 
 function validNumber_(value) {
@@ -137,7 +163,15 @@ function buildHourlyObservations_(windows) {
       startMs: rows[0].startMs, endMs: rows[rows.length - 1].endMs, windows: rows,
       heartRateSampleCount: rows.reduce(function (n, r) { return n + r.heartRateSampleCount; }, 0),
       medianHeartRate: observed.length ? Math.round(median_(observed.map(function (r) { return r.medianHeartRate; }))) : null,
+      minHeartRate: observed.length ? Math.min.apply(null, observed.map(function (r) { return r.minHeartRate; })) : null,
+      maxHeartRate: observed.length ? Math.max.apply(null, observed.map(function (r) { return r.maxHeartRate; })) : null,
+      firstHeartRateAt: observed.length ? observed[0].firstHeartRateAt : null,
+      lastHeartRateAt: observed.length ? observed[observed.length - 1].lastHeartRateAt : null,
       steps: stepRows.length ? stepRows.reduce(function (n, r) { return n + r.steps; }, 0) : null,
+      activityMinutes: rows.reduce(function (n, r) { return n + r.metMinutes; }, 0),
+      stepMinutes: rows.reduce(function (n, r) { return n + r.stepMinutes; }, 0),
+      comparedWindows: rows.filter(function (r) { return r.baseline !== null; }).length,
+      elevatedWindows: rows.filter(function (r) { return r.status === 'ABOVE_USUAL'; }).length,
       elevatedMinutes: longest * 15,
       activeMinutes: rows.reduce(function (n, r) { return n + r.activeMinutes; }, 0),
       lowMovementMinutes: rows.filter(function (r) { return r.isQuiet; }).length * 15
@@ -156,10 +190,13 @@ function buildDailySummary_(date, windows, data) {
   var sleep = (data.sleeps || []).filter(function (s) { return s.date === date; })[0] || null;
   return {
     date: date, windows: rows, nightly: nightly, sleep: sleep,
+    hours: buildHourlyObservations_(rows),
     recoveryLabel: labels[indicator] || '아직 없음', recoveryIndicator: labels[indicator] ? indicator : null,
     steps: steps.length ? steps.reduce(function (n, r) { return n + r.steps; }, 0) : null,
     observedWindows: rows.filter(function (r) { return r.heartRateSampleCount > 0; }).length,
     totalWindows: rows.length,
+    heartRateSampleCount: rows.reduce(function (n, r) { return n + r.heartRateSampleCount; }, 0),
+    stepMinutes: rows.reduce(function (n, r) { return n + r.stepMinutes; }, 0),
     activityMinutes: rows.reduce(function (n, r) { return n + r.metMinutes; }, 0),
     lastHeartRateAt: rows.reduce(function (n, r) { return Math.max(n, r.lastHeartRateAt || 0); }, 0) || null,
     activeMinutes: rows.reduce(function (n, r) { return n + r.activeMinutes; }, 0),
