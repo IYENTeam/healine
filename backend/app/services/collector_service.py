@@ -242,17 +242,25 @@ class CollectorService:
         if not 0 < (end - start).days <= 15:
             raise HTTPException(422, "Request between 1 and 15 days; end date is exclusive")
         result = empty_observations()
+        rehydrated_diagnostics: dict[UUID, dict[str, Any]] = {}
         for batch in repository.observations(db, connection.id, start, end, successful=True):
+            # Enrich old successful snapshots from their retained source. This also
+            # works when a newer empty/error batch makes the snapshot a fallback.
+            normalized = batch.normalized
+            if batch.kind in ("sleep", "recovery"):
+                normalized, diagnostics = normalize_polar_response(batch.kind, batch.date, batch.payload)
+                rehydrated_diagnostics[batch.id] = diagnostics
             for key in OBSERVATION_KEYS:
-                result[key].extend(batch.normalized.get(key, []))
+                result[key].extend(normalized.get(key, []))
         latest = repository.observations(db, connection.id, start, end, successful=False)
         result["diagnostics"] = [
             {
                 "date": b.date.isoformat(),
                 "kind": b.kind,
                 "status": b.status,
+                "http_status": b.http_status,
                 "fetchedAt": b.fetched_at.isoformat(),
-                **b.diagnostics,
+                **rehydrated_diagnostics.get(b.id, b.diagnostics),
             }
             for b in latest
         ]

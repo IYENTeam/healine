@@ -11,6 +11,16 @@ from zoneinfo import ZoneInfo
 
 SEOUL = ZoneInfo("Asia/Seoul")
 OBSERVATION_KEYS = ("heartRateSamples", "metSamples", "stepSamples", "nightlyRecharges", "sleeps")
+SLEEP_SCORE_COMPONENTS = (
+    "continuityScore",
+    "efficiencyScore",
+    "longInterruptionsTimeScore",
+    "groupSolidityScore",
+    "groupDurationScore",
+    "groupRefreshScore",
+    "n3Score",
+    "remScore",
+)
 
 
 class CollectorSchemaError(ValueError):
@@ -181,6 +191,10 @@ def normalize_polar_response(kind: str, day: date, payload: dict[str, Any]) -> t
                     "endMs": int(end.timestamp() * 1000),
                     "durationMinutes": round((end - start).total_seconds() / 60),
                     "score": _number(_object(night.get("sleepScore")).get("sleepScore"), 1, 100),
+                    "scores": {
+                        key: _number(_object(night.get("sleepScore")).get(key), 0, 100)
+                        for key in SLEEP_SCORE_COMPONENTS
+                    },
                 }
             )
     else:
@@ -201,9 +215,16 @@ def normalize_polar_response(kind: str, day: date, payload: dict[str, Any]) -> t
                     ("meanNightlyRecoveryRri", 0, math.inf),
                     ("meanBaselineRmssd", 0, math.inf),
                     ("meanBaselineRri", 0, math.inf),
+                    ("meanNightlyRecoveryRespirationInterval", 0, math.inf),
+                    ("meanBaselineRespirationInterval", 0, math.inf),
+                    ("ansRate", 1, 5),
+                    ("ansStatus", -15.7068, 15.7068),
                 ):
                     value = _number(night.get(key), low, high)
-                    if value is not None and value > 0 and (key != "recoveryIndicator" or value.is_integer()):
+                    # Zero is a meaningful signed ANS status, but an absent interval/HRV sentinel.
+                    if key not in ("recoveryIndicator", "ansRate", "ansStatus") and value == 0:
+                        continue
+                    if value is not None and (key not in ("recoveryIndicator", "ansRate") or value.is_integer()):
                         normalized_night[key] = value
                     elif night.get(key) is not None:
                         diagnostics["rejected_samples"] += 1

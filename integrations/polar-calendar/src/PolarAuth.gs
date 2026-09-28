@@ -163,6 +163,10 @@ function getValidPolarAccessToken_() {
 
 function refreshPolarToken_() {
   var properties = PropertiesService.getUserProperties();
+  var failure = JSON.parse(properties.getProperty(HEALINE.propertyKeys.lastError) || 'null');
+  if (failure && failure.code === 'polar_reconnect_required') {
+    throw new Error('POLAR_RECONNECT_REQUIRED: Polar를 다시 연결하세요.');
+  }
   var refreshToken = properties.getProperty(HEALINE.propertyKeys.refreshToken);
   if (!refreshToken) {
     throw new Error('Polar 인증이 없습니다. 배포한 웹 앱 URL을 열어 먼저 연결하세요.');
@@ -203,6 +207,8 @@ function requestPolarToken_(payload) {
 
 function savePolarToken_(token) {
   var properties = PropertiesService.getUserProperties();
+  var lastError = JSON.parse(properties.getProperty(HEALINE.propertyKeys.lastError) || 'null');
+  properties.deleteProperty(HEALINE.propertyKeys.lastError);
   var values = {};
   values[HEALINE.propertyKeys.accessToken] = token.access_token;
   values[HEALINE.propertyKeys.expiresAt] = String(
@@ -215,6 +221,11 @@ function savePolarToken_(token) {
       ? 'granted' : 'denied';
   }
   properties.setProperties(values);
+  if (lastError && lastError.code === 'polar_reconnect_required' && isHealinePlatformConnected_()) {
+    // OAuth can finish during a locked replay. Merge the request on the next
+    // live run, so a cached replay checkpoint cannot overwrite or acknowledge it.
+    properties.setProperty(HEALINE.propertyKeys.calendarCatchupPending, '1');
+  }
 }
 
 function resetPolarAuthorization() {
@@ -300,7 +311,7 @@ function connectHealinePlatform_(parameters) {
   if (!result.key || !result.connection_id) throw new Error('Healine 연결 응답을 확인할 수 없습니다.');
   props.setProperty(HEALINE.propertyKeys.platformUrl, url);
   props.setProperty(HEALINE.propertyKeys.platformKey, result.key);
-  props.setProperty(HEALINE.propertyKeys.platformBackfillDate, addIsoDays_(formatIsoDate_(new Date()), -HEALINE.baselineDays));
+  queueHealineBackfill();
   props.deleteProperty(HEALINE.propertyKeys.baseline);
   props.deleteProperty(HEALINE.propertyKeys.baselineAttemptDate);
   var message = 'Healine에 연결했습니다.';

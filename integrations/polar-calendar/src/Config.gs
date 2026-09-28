@@ -2,6 +2,7 @@ var HEALINE = Object.freeze({
   timezone: 'Asia/Seoul',
   timezoneOffset: '+09:00',
   apiBaseUrl: 'https://www.polaraccesslink.com/v4/data',
+  platformOrigin: 'https://healine.iyendev.com',
   authorizationUrl: 'https://auth.polar.com/oauth/authorize',
   tokenUrl: 'https://auth.polar.com/oauth/token',
   scopes: [
@@ -14,7 +15,7 @@ var HEALINE = Object.freeze({
   calendarId: 'f5323b2dbd20de99724fec1d9d245452e60c0fc9e458829f542ad4651b492d9b@group.calendar.google.com',
   windowMinutes: 15,
   baselineDays: 14,
-  modelVersion: 2,
+  modelVersion: 3,
   baselineMinDays: 5,
   baselineMinWindows: 12,
   minimumMetMinutes: 12,
@@ -29,6 +30,7 @@ var HEALINE = Object.freeze({
     calendarName: 'HEALINE_CALENDAR_NAME',
     baseline: 'HEALINE_BASELINE_JSON',
     baselineAttemptDate: 'HEALINE_BASELINE_ATTEMPT_DATE',
+    baselineDirty: 'HEALINE_BASELINE_DIRTY',
     grantedScopes: 'POLAR_GRANTED_SCOPES',
     sleepAccess: 'HEALINE_SLEEP_ACCESS',
     accessToken: 'POLAR_ACCESS_TOKEN',
@@ -37,9 +39,13 @@ var HEALINE = Object.freeze({
     oauthState: 'POLAR_OAUTH_STATE',
     oauthStateExpiresAt: 'POLAR_OAUTH_STATE_EXPIRES_AT',
     lastResult: 'HEALINE_LAST_RESULT',
+    lastError: 'HEALINE_LAST_ERROR',
+    calendarBackfill: 'HEALINE_CALENDAR_BACKFILL',
+    calendarCatchupPending: 'HEALINE_CALENDAR_CATCHUP_PENDING',
+    calendarSweepDate: 'HEALINE_CALENDAR_SWEEP_DATE',
+    lastBackfill: 'HEALINE_LAST_BACKFILL',
     platformUrl: 'HEALINE_PLATFORM_URL',
-    platformKey: 'HEALINE_PLATFORM_COLLECTOR_KEY',
-    platformBackfillDate: 'HEALINE_PLATFORM_BACKFILL_DATE'
+    platformKey: 'HEALINE_PLATFORM_COLLECTOR_KEY'
   })
 });
 

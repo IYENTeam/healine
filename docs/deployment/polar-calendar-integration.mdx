@@ -62,8 +62,7 @@ code. Rerun it if the code expires. Issuing a code leaves the old key valid;
 consuming the code rotates that key.
 
 Existing Polar credentials, the calendar, event identifiers, and personal notes
-are retained. Before pairing, standalone collection continues. After pairing,
-platform errors stop that calendar run and preserve existing entries.
+are retained. Before pairing, standalone collection continues. After pairing, platform errors preserve existing entries. A Polar authorization failure can still render retained platform observations, with a visible collection warning and actual measurement dates.
 
 ## Verify real operation
 
@@ -96,6 +95,12 @@ observed samples. Raw responses remain in Healine. See the
 for the fields and aggregation rules. Notes under `[내 메모]` survive updates in
 both daily and hourly events.
 
+Descriptions plus notes are bounded to 8,000 characters. Long hourly records use
+shorter prose while retaining the same JSON observations and comparison evidence.
+If preserved notes still exceed the budget, the writer stops before mutation.
+The readback audit uses event tags, so a truncated description cannot disappear
+from the audit simply because its closing marker is missing.
+
 An existing hourly event whose observations disappear from a successful snapshot
 is updated to explicit missing data, preserving its notes; a fetch error leaves
 the previous records intact. Legacy quarter-hour events are retained because
@@ -118,10 +123,33 @@ Calendar queries use the latest successful snapshot per date/type, with diagnost
 from the latest fetch. A later empty or failed response retains earlier observations.
 Replaying an older response cannot erase that fallback or overwrite newer records.
 
-The existing 15-minute trigger rereads today and yesterday. It also attempts one
-earlier day per run, starting 14 days before pairing. This historical pass advances
-through provider errors, so its completion does not guarantee fourteen complete
-days. Inspect historical diagnostics. Older calendar dates are not rewritten.
+The existing 15-minute trigger rereads today and yesterday and reconciles one older
+date from a rolling 30-day range or the explicit backfill queue. Reconciliation
+includes Calendar writes, not just platform ingestion. Failed dates remain pending
+with bounded exponential delay while other dates continue. A successful date
+invalidates recent comparison references so late data can affect later displays.
+
+Use `queueHealineBackfill(from, to)` for an exclusive-end range of up to 60 days;
+without arguments it queues the last 30 days. `continueHealineBackfill()` processes
+up to four dates and stops starting dates after a 240-second budget.
+`replayStoredHealineCalendar()` uses only retained data when Polar cannot be
+reauthorized yet. Inspect `getHealineStatus()` for pending dates, attempts, latest
+backfill mode and collection errors. Cached replay is not a successful new provider
+fetch. Unreceived periods cannot be recreated without source data.
+
+Calendar creation throttling pauses all Calendar writes until the persisted
+`calendarRetryAt` deadline, including cached replay; source collection can
+continue. The latest failure records its stage and message. Do not clear this
+deadline to force repeated attempts during a service restriction.
+
+An `invalid_grant` blocks repeated token refresh attempts until the owner
+reconnects through the same web app. Daily Calendar records show the interruption
+and retain known measurements. Successful reauthorization records a durable
+catch-up request; the next live run queues the latest 30 days and clears retry
+delays. A cached replay in progress cannot consume that fresh-source request.
+Sleep/ANS components are rehydrated from retained
+raw snapshots on read, including successful snapshots behind newer failures;
+no destructive historical migration is required.
 Watch-to-Flow synchronization still determines when new data becomes available.
 
 Pending processing and internal failures retry every 60 seconds, up to five
@@ -145,3 +173,29 @@ Dates currently use Asia/Seoul. Sleep interval length includes interruptions and
 is stored as time in bed, without inventing net sleep time. Shared timeseries are
 upserted by timestamp; omission from a later snapshot does not delete an earlier
 sample from shared history. Calendar queries use complete stored snapshots.
+
+## Fixed ingress for this installation
+
+The existing local installation uses `https://healine.iyendev.com`, a dedicated
+named Cloudflare tunnel to the collector-only ingress at `127.0.0.1:8011`.
+`COLLECTOR_PUBLIC_URL` and the collector's stored origin must agree. The operator
+function `repairHealinePlatformConnection()` checks the configured fixed origin
+using the existing collector key, rolls back on failure, and queues recent history.
+It does not replace the OAuth client, key, Apps Script project or Calendar.
+
+The dedicated macOS launch agent is `com.iyendev.healine-collector`; its tunnel
+configuration is `~/.cloudflared/healine-collector.yml`. It restarts the tunnel
+process after a crash and at user login. It does not wake the Mac or start Docker.
+Check an unauthenticated collector request returns 401 and an administrator API
+path returns 404. Keep credentials outside the repository. Never use a random
+Quick Tunnel address as the long-term collector origin.
+
+## Recovery and comparison model
+
+Calendar model version 3 includes Polar ANS rating, signed ANS status, sleep
+component scores and separate prior-night comparisons. Daytime comparisons match
+current and previous activity with past observations near the same time of day.
+Read the [exact display rules](../../integrations/polar-calendar/README.md) and
+[research and SDK assessment](./polar-calendar-evidence.mdx). Verification of
+aggregation, missingness, time order and recoverability is separate from any
+validation of psychological stress detection.

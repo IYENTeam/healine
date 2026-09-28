@@ -257,6 +257,77 @@ def test_recovery_components_and_sleep_errors_remain_distinct(
     assert observations(client, headers)["sleepAccess"] == "needs_connection"
 
 
+def test_recovery_rehydrates_old_snapshot_and_keeps_zero_ans_status(
+    client: TestClient, user: User, auth_headers: dict[str, str], db: Session
+) -> None:
+    headers = connect(client, user, auth_headers)
+    raw = {
+        "nightlyRechargeResults": [
+            {
+                "sleepResultDate": DAY,
+                "recoveryIndicator": 2,
+                "ansRate": 1,
+                "ansStatus": 0,
+                "meanNightlyRecoveryRmssd": 28,
+                "meanNightlyRecoveryRri": 900,
+                "meanBaselineRmssd": 0,
+                "meanBaselineRri": 0,
+            }
+        ]
+    }
+    response = client.post(BASE + "/batches", headers=headers, json=delivery("recovery", raw))
+    assert response.json()["diagnostics"]["code"] == "ok"
+    batch = db.scalar(select(CollectorBatch))
+    batch.normalized = {"nightlyRecharges": [{"sleepResultDate": DAY, "recoveryIndicator": 2}]}
+    batch.diagnostics = {"code": "partial", "rejected_samples": 2}
+    db.commit()
+    # The old parser rejected zero baseline sentinels; the current read must not
+    # keep that obsolete warning beside the rehydrated measurements.
+    assert observations(client, headers)["diagnostics"][0]["code"] == "ok"
+    client.post(BASE + "/batches", headers=headers, json=delivery("recovery", {}, 500))
+    result = observations(client, headers)
+    night = result["nightlyRecharges"][0]
+    assert night["ansRate"] == 1
+    assert night["ansStatus"] == 0
+    assert "meanBaselineRmssd" not in night
+    assert result["diagnostics"][0]["http_status"] == 500
+
+
+def test_sleep_subscores_are_points_and_survive_older_normalized_storage(
+    client: TestClient, user: User, auth_headers: dict[str, str], db: Session
+) -> None:
+    headers = connect(client, user, auth_headers)
+    raw = {
+        "nightSleeps": [
+            {
+                "sleepDate": DAY,
+                "sleepResult": {
+                    "hypnogram": {"sleepStart": "2026-09-16T23:00:00+09:00", "sleepEnd": "2026-09-17T07:00:00+09:00"}
+                },
+                "sleepScore": {
+                    "sleepScore": 65,
+                    "groupSolidityScore": 39,
+                    "efficiencyScore": 45,
+                    "continuityScore": 44,
+                    "longInterruptionsTimeScore": 28,
+                    "remScore": 101,
+                },
+            }
+        ]
+    }
+    client.post(BASE + "/batches", headers=headers, json=delivery("sleep", raw))
+    batch = db.scalar(select(CollectorBatch))
+    old = dict(batch.normalized)
+    old["sleeps"] = [{key: value for key, value in old["sleeps"][0].items() if key != "scores"}]
+    batch.normalized = old
+    db.commit()
+    sleep = observations(client, headers)["sleeps"][0]
+    assert sleep["durationMinutes"] == 480
+    assert sleep["scores"]["efficiencyScore"] == 45
+    assert sleep["scores"]["groupSolidityScore"] == 39
+    assert sleep["scores"]["remScore"] is None
+
+
 def test_live_unwrapped_daily_shapes_can_be_replayed_into_shared_records(
     client: TestClient, user: User, auth_headers: dict[str, str], db: Session
 ) -> None:

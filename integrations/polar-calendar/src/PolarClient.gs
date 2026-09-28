@@ -35,8 +35,10 @@ function fetchPolarWindowData_(window) {
   var from = formatIsoDate_(window.start);
   var to = addIsoDays_(formatIsoDate_(new Date(window.end.getTime() - 1)), 1);
   if (isHealinePlatformConnected_()) {
-    syncPlatformRange_(from, to);
-    return readPlatformObservations_(from, to);
+    var receipt = syncPlatformRange_(from, to);
+    var stored = readPlatformObservations_(from, to);
+    if (receipt && !receipt.complete) stored.syncWarning = '일부 Polar 조회가 실패했습니다. 종류별 수집 상태와 측정 날짜를 확인하세요.';
+    return stored;
   }
   var activity = fetchActivityRange_(from, to);
   var sleep = fetchSleepRange_(from, to);
@@ -198,9 +200,20 @@ function extractSleeps_(response) {
     return {
       date: night.sleepDate, startMs: start, endMs: end,
       durationMinutes: Math.round((end - start) / 60000),
-      score: score !== null && score >= 1 && score <= 100 ? round_(score, 1) : null
+      score: score !== null && score >= 1 && score <= 100 ? round_(score, 1) : null,
+      scores: sleepScoreComponents_(night.sleepScore || {})
     };
   }).filter(function (sleep) { return sleep !== null; });
+}
+
+function sleepScoreComponents_(score) {
+  var output = {};
+  ['continuityScore', 'efficiencyScore', 'longInterruptionsTimeScore', 'groupSolidityScore',
+    'groupDurationScore', 'groupRefreshScore', 'n3Score', 'remScore'].forEach(function (key) {
+    var value = validNumber_(score[key]);
+    output[key] = value !== null && value >= 0 && value <= 100 ? value : null;
+  });
+  return output;
 }
 
 function isHealinePlatformConnected_() {
@@ -228,6 +241,7 @@ function platformRequest_(path, payload) {
 }
 
 function syncPlatformRange_(from, to) {
+  var complete = true;
   isoDatesBetween_(from, to).forEach(function (date) {
     [
       { kind: 'heart_rate', path: '/continuous-samples', features: 'heart-rate-samples' },
@@ -251,8 +265,10 @@ function syncPlatformRange_(from, to) {
       if (batch.status === 'processing_error' || batch.status === 'pending') {
         throw new Error('Healine에 원본을 저장했지만 처리 중입니다. 다음 실행에서 다시 확인합니다.');
       }
+      if (['processed', 'empty'].indexOf(batch.status) < 0 && response.getResponseCode() !== 404) complete = false;
     });
   });
+  return { complete: complete };
 }
 
 function readPlatformObservations_(from, to) {
@@ -262,14 +278,4 @@ function readPlatformObservations_(from, to) {
     throw new Error('Healine 관측 응답 형식을 확인할 수 없습니다.');
   }
   return data;
-}
-
-function backfillPlatformDay_() {
-  if (!isHealinePlatformConnected_()) return;
-  var props = PropertiesService.getUserProperties();
-  var date = props.getProperty(HEALINE.propertyKeys.platformBackfillDate);
-  var yesterday = addIsoDays_(formatIsoDate_(new Date()), -1);
-  if (!date || date >= yesterday) return;
-  syncPlatformRange_(date, addIsoDays_(date, 1));
-  props.setProperty(HEALINE.propertyKeys.platformBackfillDate, addIsoDays_(date, 1));
 }

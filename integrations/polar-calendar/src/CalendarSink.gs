@@ -23,12 +23,22 @@ function findHealineEvent_(events, tag, key) {
 
 function upsertManagedEvent_(calendar, events, spec) {
   var event = findHealineEvent_(events, spec.tag, spec.key);
+  var notes = '';
   if (spec.notes) {
     var marker = '\n\n[내 메모]\n';
     var previous = event ? event.getDescription() : '';
     var markerIndex = previous.indexOf(marker);
-    spec.description += marker + (markerIndex >= 0
+    notes = marker + (markerIndex >= 0
       ? previous.slice(markerIndex + marker.length) : '몸 상태·카페인·운동·업무 상황을 적어두면 기록과 비교할 수 있습니다.');
+  }
+  // Calendar can silently truncate long descriptions. Keep the data block and
+  // notes whole; shorten only generated prose, before making any mutation.
+  if (spec.description.length + notes.length > 8000 && spec.compactDescription) {
+    spec.description = spec.compactDescription();
+  }
+  spec.description += notes;
+  if (spec.description.length > 8000) {
+    throw new Error('캘린더 설명 길이 한도: ' + spec.key + '. 기존 기록과 메모는 유지했습니다.');
   }
   if (!event) {
     event = spec.allDay
@@ -57,14 +67,29 @@ function upsertHealineHour_(calendar, events, hour) {
   return upsertManagedEvent_(calendar, events, {
     tag: 'healineHour', key: hourKey_(hour.startMs), startMs: hour.startMs, endMs: hour.endMs,
     title: hourlyTitle_(hour), description: hourlyDescription_(hour), notes: true,
+    compactDescription: function () { return compactHourlyDescription_(hour); },
     color: hour.elevatedMinutes >= 30 ? CalendarApp.EventColor.ORANGE :
       hour.activeMinutes > 0 || hour.steps >= 100 ? CalendarApp.EventColor.BLUE : CalendarApp.EventColor.GRAY
   });
 }
 
+function compactHourlyDescription_(hour) {
+  var lines = ['Healine · 시간대별 관측 · ' + formatDateTime_(new Date(hour.startMs)),
+    '기록된 구간의 심박이며 스트레스 점수가 아닙니다. 빈 구간은 보간하지 않습니다.'];
+  hour.windows.forEach(function (row) {
+    var line = clockTime_(row.startMs) + ' · 심박 ' + displayValue_(row.medianHeartRate) + ' bpm';
+    if (row.baseline) line += ' · 이전 ' + row.baseline.days + '일 기준 ' + row.baseline.median +
+      ' · 차이 ' + signed_(row.heartRateDelta);
+    else line += ' · 개인 비교 보류';
+    lines.push(line);
+  });
+  lines.push(calendarDataBlock_(hourlyCalendarData_(hour)), '[healine-hour:' + hourKey_(hour.startMs) + ']');
+  return lines.join('\n');
+}
+
 function hourlyTitle_(hour) {
   if (!hasHourlyObservations_(hour)) return '⌛ 관측 미수신';
-  var title = hour.elevatedMinutes >= 30 ? '🫀 낮은 활동에 심박 ↑' :
+  var title = hour.elevatedMinutes >= 30 ? '🫀 비슷한 활동 대비 심박 ↑' :
     hour.activeMinutes > 0 || hour.steps >= 100 || hour.medianHeartRate === null ? '🚶 활동 기록' : '🫀 심박 기록';
   if (hour.medianHeartRate !== null) title += ' · ' + hour.medianHeartRate + ' bpm';
   if (hour.steps !== null) title += ' · ' + hour.steps + '보';
@@ -78,22 +103,26 @@ function hourlyDescription_(hour) {
     '실제 심박 측정 범위: ' + measurementRange_(hour.firstHeartRateAt, hour.lastHeartRateAt),
     '제목의 심박은 15분 중앙값들의 중앙값입니다. 빈 구간은 보간하지 않습니다.', ''];
   if (hour.elevatedMinutes >= 30) {
-    lines.push('움직임이 적게 기록된 15분 구간 ' + hour.elevatedMinutes / 15 + '개에서 연속으로 개인 비교 기준을 넘었습니다.');
+    lines.push('활동량이 비슷한 과거 기록과 비교한 15분 구간 ' + hour.elevatedMinutes / 15 + '개에서 연속으로 표시 경계를 넘었습니다.');
     lines.push('당시의 운동·카페인·몸 상태·일정을 함께 확인하고, 여유가 생기면 잠깐 쉬며 현재 느낌과 비교해 보세요.', '');
   }
   var labels = {
     NO_DATA: '심박 미수신', PARTIAL: '심박 또는 활동 기록 부족', ACTIVE: '활동 기록 있음',
     AFTER_ACTIVITY: '최근 30분에 활동 기록 있음', OBSERVED: '관측값', SLEEP_RECORDED: 'Polar 수면 기록과 겹치는 구간',
     NIGHT_OBSERVATION: '야간 · 개인 심박 비교 보류',
-    LOW_MOVEMENT: '낮은 활동 기록', BUILDING_BASELINE: '개인 비교 기준 누적 중', ABOVE_USUAL: '개인 비교 기준보다 높음'
+    LOW_MOVEMENT: '낮은 활동 기록', CONTEXT_MATCHED: '비슷한 활동 기록과 비교',
+    BUILDING_BASELINE: '비슷한 활동의 개인 기준 누적 중', ABOVE_USUAL: '비슷한 활동 대비 심박 높음'
   };
   hour.windows.forEach(function (row) {
     var line = clockTime_(row.startMs) + '–' + clockTime_(row.endMs) + ' · ' + labels[row.status];
     if (row.medianHeartRate !== null) line += ' · 심박 중앙값 ' + row.medianHeartRate + ' bpm (' +
       row.minHeartRate + '–' + row.maxHeartRate + ' bpm)';
     lines.push(line);
-    if (row.baseline) lines.push('  같은 시간대 ' + row.baseline.days + '일·' + row.baseline.windows + '구간 기준 ' + row.baseline.median +
+    if (row.baseline) lines.push('  이전 ' + row.baseline.days + '일·' + row.baseline.windows + '구간 기준 ' + row.baseline.median +
       ' bpm / 차이 ' + signed_(row.heartRateDelta) + ' bpm / 표시 경계 ' + row.baseline.upper + ' bpm');
+    if (row.baseline) lines.push('  비교 조건: ' + row.baseline.source);
+    lines.push('  직전 30분: 평균 MET ' + displayValue_(row.recentAverageMet) +
+      ' · MET 2 이상 ' + displayValue_(row.recentActiveMinutes) + '분 · 수신 ' + row.recentActivityMetMinutes + '/30분');
     lines.push('  심박 ' + row.heartRateSampleCount + '개 · 실제 측정 ' + measurementRange_(row.firstHeartRateAt, row.lastHeartRateAt));
     lines.push('  평균 MET ' + displayValue_(row.averageMet) + ' · 최대 MET ' + displayValue_(row.maxMet) +
       ' · MET 2 이상 관측 ' + (row.metMinutes ? row.activeMinutes + '분' : '미수신'));
@@ -110,6 +139,7 @@ function hourlyDescription_(hour) {
 
 function upsertHealineDay_(calendar, events, summary) {
   var title = '🌿 회복 ' + summary.recoveryLabel;
+  if (summary.syncWarning) title = '⚠️ 수집 중단 · 회복 ' + summary.recoveryLabel;
   if (summary.sleep) title += ' · 수면 구간 ' + durationText_(summary.sleep.durationMinutes);
   if (summary.steps !== null) title += ' · 관측 ' + summary.steps + '보';
   return upsertManagedEvent_(calendar, events, {
@@ -122,9 +152,13 @@ function upsertHealineDay_(calendar, events, summary) {
 
 function dailyDescription_(summary) {
   var lines = ['Healine · ' + summary.date + ' 하루 요약', '', '오늘 참고할 점', summary.guidance, '', '밤사이 회복'];
+  if (summary.syncWarning) lines.splice(2, 0, '수집 상태: ' + summary.syncWarning, '마지막 저장 기록을 표시합니다. 측정 날짜와 시각을 확인하세요.', '');
   var n = summary.nightly;
   lines.push('Polar Nightly Recharge: ' + summary.recoveryLabel + (n ? ' (' + n.sleepResultDate + ')' : ''));
   if (n) {
+    var ans = validNumber_(n.ansRate), ansStatus = validNumber_(n.ansStatus);
+    if (ans !== null && ans >= 1 && ans <= 5) lines.push('Polar 자율신경 회복(ANS): ' + ans + '/5 단계 (1 최저, 5 최고)' +
+      (ansStatus !== null ? ' · 평소 대비 ANS 값 ' + signed_(round_(ansStatus, 2)) : ''));
     var rri = positiveNumber_(n.meanNightlyRecoveryRri);
     var baselineRri = positiveNumber_(n.meanBaselineRri);
     var hrv = positiveNumber_(n.meanNightlyRecoveryRmssd);
@@ -134,11 +168,27 @@ function dailyDescription_(summary) {
     if (hrv) lines.push('야간 HRV(RMSSD): ' + hrv + ' ms' +
       (baselineHrv ? ' · 평소 ' + baselineHrv + ' ms (' + signed_(Math.round((hrv / baselineHrv - 1) * 100)) + '%)' : ''));
     if (rri || hrv) lines.push('야간 지표는 수면 초반의 측정값입니다. 낮 시간 스트레스 측정값이 아닙니다.');
+    if (summary.nightComparison) {
+      var reference = summary.nightComparison;
+      lines.push('이전 14일 중 수신된 ' + reference.nights + '밤의 중앙값과 비교 (Polar 자체 기준과 별도):');
+      if (reference.rmssdChangePercent !== null) lines.push('  HRV 기준 ' + reference.medianRmssdMs +
+        ' ms · 변화 ' + signed_(reference.rmssdChangePercent) + '%');
+      if (reference.heartRateChangeBpm !== null) lines.push('  환산 심박 기준 ' + reference.medianHeartRateFromRriBpm +
+        ' bpm · 변화 ' + signed_(reference.heartRateChangeBpm) + ' bpm');
+    }
   }
   if (summary.sleep) {
     lines.push('수면 구간: ' + clockTime_(summary.sleep.startMs) + '–' + clockTime_(summary.sleep.endMs) +
       ' (' + durationText_(summary.sleep.durationMinutes) + ', 중간 각성 포함)');
-    if (summary.sleep.score !== null) lines.push('Polar 수면 점수: ' + summary.sleep.score + '/100');
+    if (summary.sleep.score !== null) lines.push('Polar 수면 점수: ' + round_(summary.sleep.score, 1) + '/100');
+    var scores = summary.sleep.scores || {};
+    [['수면 견고성', 'groupSolidityScore'], ['수면 연속성', 'continuityScore'],
+      ['긴 각성 관련', 'longInterruptionsTimeScore'], ['수면 효율 관련', 'efficiencyScore'],
+      ['수면량', 'groupDurationScore'], ['수면 재생', 'groupRefreshScore']].forEach(function (entry) {
+      var value = validNumber_(scores[entry[1]]);
+      if (value !== null) lines.push(entry[0] + ' 점수: ' + round_(value, 1) + '/100');
+    });
+    if (Object.keys(scores).length) lines.push('세부 값은 Polar의 점수입니다. 효율 비율(%)이나 각성 시간(분)이 아닙니다.');
   } else {
     lines.push('수면 시간: ' + (summary.sleepAccess === 'needs_connection'
       ? '추가 연결 필요. Healine 설정 화면에서 Polar를 다시 연결하면 수면 읽기가 추가됩니다.'
@@ -150,8 +200,10 @@ function dailyDescription_(summary) {
     '걸음 데이터가 있는 시간: ' + summary.stepMinutes + '분',
     '심박 샘플 수: ' + summary.heartRateSampleCount + '개',
     '심박 기록이 있는 15분 구간: ' + summary.observedWindows + '/' + summary.totalWindows + '개',
+    '활동 조건을 갖춘 15분 구간 중 개인 비교 가능: ' + (summary.comparedWindows || 0) + '/' +
+      (summary.comparisonEligibleWindows || 0) + '개',
     '마지막 심박 시각: ' + (summary.lastHeartRateAt ? formatDateTime_(new Date(summary.lastHeartRateAt)) : '미수신'),
-    '빈 구간은 휴식이나 0걸음으로 계산하지 않습니다. Flow 동기화 후 오늘·어제 기록을 다시 반영합니다.');
+    '빈 구간은 휴식이나 0걸음으로 계산하지 않습니다. Flow 동기화 후 최근 기록과 과거 보충 대상을 다시 반영합니다.');
   var hours = (summary.hours || []).filter(hasHourlyObservations_);
   if (hours.length) {
     lines.push('', '시간대별 흐름', '심박은 각 시간대의 15분 중앙값들을 요약한 값이며, 범위는 관측 최소–최대입니다.');
@@ -198,7 +250,7 @@ function calendarDataBlock_(data) {
 
 function hourlyCalendarData_(hour) {
   return {
-    schema: 'healine.calendar.v1', kind: 'hour', timezone: HEALINE.timezone,
+    schema: 'healine.calendar.v1', modelVersion: HEALINE.modelVersion, kind: 'hour', timezone: HEALINE.timezone,
     provider: 'polar-accesslink-v4', storage: hour.source || 'apps-script',
     start: isoTimestamp_(hour.startMs), end: isoTimestamp_(hour.endMs),
     dataState: hasHourlyObservations_(hour) ? 'observed' : 'no_observations_in_latest_snapshot',
@@ -220,9 +272,13 @@ function hourlyCalendarData_(hour) {
           metAtLeast2ObservedMinutes: row.metMinutes ? row.activeMinutes : null,
           observedSteps: row.steps, stepCoveredMinutes: row.stepMinutes,
           recent30MinMetCoverageMinutes: row.recentActivityMetMinutes,
+          recent30MinMetSampleMean: row.recentAverageMet,
+          recent30MinActiveMinutes: row.recentActiveMinutes,
           recentActivityObserved: row.recentActivityMetMinutes ? row.recentActivity : null },
+        comparisonEligible: Boolean(row.comparisonEligible), comparisonReason: row.comparisonReason || null,
         comparison: row.baseline ? { baselineBpm: row.baseline.median, displayUpperBpm: row.baseline.upper,
           deltaBpm: row.heartRateDelta, priorDays: row.baseline.days, priorWindows: row.baseline.windows,
+          referenceDates: row.baseline.dates || [], method: row.baseline.method || null,
           reference: row.baseline.source } : null
       };
     })
@@ -233,17 +289,23 @@ function dailyCalendarData_(summary) {
   var n = summary.nightly || {}, sleep = summary.sleep;
   var rri = positiveNumber_(n.meanNightlyRecoveryRri), baselineRri = positiveNumber_(n.meanBaselineRri);
   return {
-    schema: 'healine.calendar.v1', kind: 'day', date: summary.date, timezone: HEALINE.timezone,
+    schema: 'healine.calendar.v1', modelVersion: HEALINE.modelVersion, kind: 'day', date: summary.date, timezone: HEALINE.timezone,
     provider: 'polar-accesslink-v4', storage: summary.source || 'apps-script',
     nullMeaning: 'unreceived_or_not_comparable',
     analyzedThrough: summary.windows.length ? isoTimestamp_(summary.windows[summary.windows.length - 1].endMs) : null,
     recovery: { date: summary.nightly ? n.sleepResultDate : null, polarIndicator1To6: summary.recoveryIndicator,
+      polarAnsRating1To5: validNumber_(n.ansRate), polarAnsStatus: validNumber_(n.ansStatus),
       meanRriMs: rri, baselineMeanRriMs: baselineRri,
       heartRateFromMeanRriBpm: rri ? round_(60000 / rri, 1) : null,
       baselineHeartRateFromMeanRriBpm: baselineRri ? round_(60000 / baselineRri, 1) : null,
       rmssdMs: positiveNumber_(n.meanNightlyRecoveryRmssd), baselineRmssdMs: positiveNumber_(n.meanBaselineRmssd) },
     sleep: sleep ? { start: isoTimestamp_(sleep.startMs), end: isoTimestamp_(sleep.endMs),
-      intervalMinutesIncludingAwake: sleep.durationMinutes, polarScore: sleep.score } : null,
+      intervalMinutesIncludingAwake: sleep.durationMinutes, polarScore: sleep.score,
+      polarComponentScoresOutOf100: sleep.scores || null } : null,
+    syncWarning: summary.syncWarning || null,
+    overnightPersonalComparison: summary.nightComparison || null,
+    daytimeComparison: { eligibleQuarters: summary.comparisonEligibleWindows || 0,
+      comparedQuarters: summary.comparedWindows || 0, method: 'activity_context_v3' },
     sleepAccess: summary.sleepAccess || 'unknown',
     activity: { observedSteps: summary.steps, metCoveredMinutes: summary.activityMinutes,
       stepCoveredMinutes: summary.stepMinutes, metAtLeast2ObservedMinutes: summary.activityMinutes ? summary.activeMinutes : null },

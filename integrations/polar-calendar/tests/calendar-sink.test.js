@@ -115,12 +115,37 @@ test('hour descriptions export bounded minute data, explicit UTC timestamps and 
   assert.equal(data.quarters[3].heartRate.lastAt,'2026-09-17T05:59:59.000Z');
   assert.equal(data.quarters[0].comparison,null);
   assert.ok(e.description.includes('평균 MET 1.15'));
-  assert.ok(Buffer.byteLength(e.description,'utf8')<16000);
+  assert.ok(e.description.length<=8000);
   e.description=e.description.split('\n\n[내 메모]\n')[0]+'\n\n[내 메모]\n이 시간에 회의';
   c.upsertHealineHour_(calendar,[e],hour);const count=e.mutations;
   c.upsertHealineHour_(calendar,[e],hour);
   assert.equal(saved.length,1);assert.equal(e.mutations,count);
   assert.ok(e.description.endsWith('이 시간에 회의'));
+});
+
+test('dense comparisons survive Calendar truncation and long notes are never silently lost', () => {
+  const {c,calendar,saved}=setup();
+  const rows=observedWindows(c,true);
+  for(const row of rows){
+    row.baseline={days:14,windows:56,median:70,upper:80,method:'activity_context_v3',
+      source:'이전 14일 · 시각 ±90분 · 현재와 직전 30분 활동량이 비슷한 기록',
+      dates:Array.from({length:14},(_,i)=>c.addIsoDays_('2026-09-17',i-14))};
+    row.comparisonEligible=true;row.comparisonReason='matched_prior_activity';row.heartRateDelta=10;row.status='CONTEXT_MATCHED';
+  }
+  const hour=c.buildHourlyObservations_(rows)[0];hour.source='healine-platform';
+  assert.ok(c.hourlyDescription_(hour).length>8192);
+  const create=calendar.createEvent.bind(calendar);
+  calendar.createEvent=(t,a,b,o)=>create(t,a,b,{description:o.description.slice(0,8192)});
+  c.upsertHealineHour_(calendar,[],hour);
+  const event=saved[0];
+  assert.ok(event.description.length<=8000);
+  assert.deepEqual(calendarData(event.description),JSON.parse(JSON.stringify(c.hourlyCalendarData_(hour))));
+  assert.ok(event.description.includes('[내 메모]'));
+  event.description=event.description.split('\n\n[내 메모]\n')[0]+'\n\n[내 메모]\n'+'중요한 개인 메모 '.repeat(200);
+  const original=event.description, mutations=event.mutations;
+  assert.throws(()=>c.upsertHealineHour_(calendar,[event],hour),/길이 한도/);
+  assert.equal(event.description,original);
+  assert.equal(event.mutations,mutations);
 });
 
 test('daily exports retain dated overnight values, observed ranges and missing-versus-zero context', () => {
@@ -200,4 +225,18 @@ test('an empty snapshot clears stale hourly data consistently with the day and p
   c.fetchPolarWindowData_=()=>{throw new Error('temporary fetch error');};
   assert.throws(()=>c.runHealine(),/temporary fetch error/);
   assert.equal(hour.description,previousDescription);
+});
+
+test('ANS and sleep subscores retain units, zero status and the sync warning', () => {
+  const {context:c}=load();
+  const summary=c.buildDailySummary_('2026-09-17',[],{
+    nightlyRecharges:[{sleepResultDate:'2026-09-17',recoveryIndicator:2,ansRate:1,ansStatus:0,meanNightlyRecoveryRmssd:28,meanNightlyRecoveryRri:900}],
+    sleeps:[{date:'2026-09-17',startMs:Date.parse('2026-09-16T23:00:00+09:00'),endMs:Date.parse('2026-09-17T07:00:00+09:00'),durationMinutes:480,score:65,scores:{efficiencyScore:45,groupSolidityScore:39}}],
+    syncWarning:'Polar 재연결 필요'
+  });
+  const text=c.dailyDescription_(summary),data=c.dailyCalendarData_(summary);
+  assert.ok(text.includes('1/5 단계'));assert.ok(text.includes('평소 대비 ANS 값 0'));
+  assert.ok(text.includes('수면 효율 관련 점수: 45/100'));assert.ok(!text.includes('45%'));
+  assert.equal(data.recovery.polarAnsStatus,0);assert.equal(data.syncWarning,'Polar 재연결 필요');
+  assert.equal(data.sleep.polarComponentScoresOutOf100.groupSolidityScore,39);
 });

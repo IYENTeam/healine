@@ -26,7 +26,10 @@ function evaluateHealineWindow_(input) {
     steps: steps.length ? Math.round(steps.reduce(function (sum, s) { return sum + s.steps; }, 0)) : null,
     minuteObservations: buildMinuteObservations_(hr, mets, steps),
     status: 'OBSERVED', baseline: null, heartRateDelta: null,
-    isQuiet: false, recentActivity: recentActive, recentActivityMetMinutes: recentMetMinutes
+    isQuiet: false, comparisonEligible: false, comparisonReason: null,
+    recentActivity: recentActive, recentActivityMetMinutes: recentMetMinutes,
+    recentAverageMet: previous.length ? round_(mean_(previous.map(function (r) { return r.met; })), 2) : null,
+    recentActiveMinutes: coveredMinutes_(previous.filter(function (r) { return r.met >= 2; }), historyStart, start)
   };
   var fullHr = hr.length >= HEALINE.minimumHeartRateSamples && hr[hr.length - 1].timestampMs - hr[0].timestampMs >= 5 * 60000;
   var fullActivity = metMinutes >= HEALINE.minimumMetMinutes;
@@ -35,25 +38,28 @@ function evaluateHealineWindow_(input) {
   if (!hr.length) result.status = 'NO_DATA';
   else if (sleeping) result.status = 'SLEEP_RECORDED';
   else if (active) result.status = 'ACTIVE';
-  else if (!fullHr || !fullActivity) result.status = 'PARTIAL';
-  else if (recentActive) result.status = 'AFTER_ACTIVITY';
+  else if (!fullHr || !fullActivity || result.stepMinutes < HEALINE.minimumMetMinutes) result.status = 'PARTIAL';
   else if (seoulHourPure_(start) < HEALINE.comparisonStartHour || seoulHourPure_(start) >= HEALINE.comparisonEndHour) {
     result.status = 'NIGHT_OBSERVATION';
-  }
-  else {
-    result.isQuiet = result.averageMet < 1.5 && mets.every(function (s) { return s.met < 2; }) &&
-      (result.steps === null || result.steps < 20) &&
-      recentMetMinutes >= HEALINE.recentActivityMinutes * 0.8;
-    if (result.isQuiet) {
-      result.baseline = resolveBaseline_(input.baseline, start);
-      result.status = result.baseline ? 'LOW_MOVEMENT' : 'BUILDING_BASELINE';
+  } else if (recentMetMinutes < HEALINE.recentActivityMinutes * 0.8) {
+    result.status = 'PARTIAL';
+    result.comparisonReason = 'recent_activity_coverage';
+  } else {
+    // Eligibility means a usable LOW-ACTIVITY observation, not confirmed rest.
+    // Recent movement is matched against comparable history, not silently ignored.
+    result.comparisonEligible = result.averageMet < 2 && result.steps < 100;
+    result.isQuiet = result.averageMet < 1.5 && result.maxMet < 2 && result.steps < 20 && !recentActive;
+    if (result.comparisonEligible) {
+      result.baseline = resolveBaseline_(input.baseline, start, result);
+      result.status = result.baseline ? 'CONTEXT_MATCHED' : 'BUILDING_BASELINE';
+      result.comparisonReason = result.baseline ? 'matched_prior_activity' : 'insufficient_matched_history';
       if (result.baseline) {
         result.heartRateDelta = round_(result.medianHeartRate - result.baseline.median, 1);
-        // Display threshold, not a clinical cutoff or a calibrated stress probability.
         if (result.medianHeartRate > result.baseline.upper) result.status = 'ABOVE_USUAL';
       }
     }
   }
+  if (!result.comparisonReason) result.comparisonReason = result.status.toLowerCase();
   return result;
 }
 
@@ -118,31 +124,33 @@ function withinWindow_(samples, startMs, endMs) {
   });
 }
 
-function resolveBaseline_(baseline, timestampMs) {
-  if (!baseline || baseline.version !== 2 || !baseline.days) return null;
+function resolveBaseline_(baseline, timestampMs, context) {
+  if (!baseline || baseline.version !== HEALINE.modelVersion || !baseline.days || !context) return null;
   var date = dateKeyPure_(timestampMs);
-  var hour = seoulHourPure_(timestampMs);
-  var values = [];
-  var windowCount = 0;
-  var latestDate = '';
+  var minute = seoulHourPure_(timestampMs) * 60 + new Date(timestampMs).getUTCMinutes();
+  var values = [], windowCount = 0, latestDate = '', referenceDates = [];
   Object.keys(baseline.days).sort().forEach(function (day) {
-    // Never let a day's measurements define the reference for that same day.
-    if (day >= date || localDayStartMs_(date) - localDayStartMs_(day) > 14 * 86400000) return;
-    baseline.days[day].forEach(function (row) {
-      if (row[0] === hour && validNumber_(row[1]) !== null) {
-        values.push(row[1]); windowCount += row[2]; latestDate = day;
-      }
+    if (day >= date || localDayStartMs_(date) - localDayStartMs_(day) > HEALINE.baselineDays * 86400000) return;
+    var matched = baseline.days[day].filter(function (row) {
+      return Math.abs(row[0] - minute) <= 90 && Math.abs(row[2] - context.averageMet) <= 0.35 &&
+        (row[3] < 20) === (context.steps < 20) && Math.abs(row[4] - context.activeMinutes) <= 3 &&
+        Math.abs(row[5] - context.recentAverageMet) <= 0.5 &&
+        Math.abs(row[6] - context.recentActiveMinutes) <= 5;
     });
+    if (matched.length) {
+      values.push(median_(matched.map(function (row) { return row[1]; })));
+      windowCount += matched.length; latestDate = day; referenceDates.push(day);
+    }
   });
   if (values.length < HEALINE.baselineMinDays || windowCount < HEALINE.baselineMinWindows ||
       localDayStartMs_(date) - localDayStartMs_(latestDate) > 4 * 86400000) return null;
-  var center = median_(values);
-  var mad = median_(values.map(function (v) { return Math.abs(v - center); }));
+  var center = median_(values), mad = median_(values.map(function (v) { return Math.abs(v - center); }));
   return {
     median: round_(center, 1),
     upper: round_(Math.max(percentile_(values, 0.9), center + 10, center + 3 * 1.4826 * mad), 1),
-    days: values.length, windows: windowCount,
-    source: '최근 14일 같은 시간대 · 낮은 활동 기록'
+    days: values.length, windows: windowCount, dates: referenceDates,
+    method: 'activity_context_v3',
+    source: '이전 14일 · 시각 ±90분 · 현재와 직전 30분 활동량이 비슷한 기록'
   };
 }
 
@@ -190,6 +198,9 @@ function buildDailySummary_(date, windows, data) {
   var sleep = (data.sleeps || []).filter(function (s) { return s.date === date; })[0] || null;
   return {
     date: date, windows: rows, nightly: nightly, sleep: sleep,
+    nightComparison: compareNightlyHistory_(date, nightly, data.nightlyHistory || data.nightlyRecharges || []),
+    comparisonEligibleWindows: rows.filter(function (r) { return r.comparisonEligible; }).length,
+    comparedWindows: rows.filter(function (r) { return r.baseline; }).length,
     hours: buildHourlyObservations_(rows),
     recoveryLabel: labels[indicator] || '아직 없음', recoveryIndicator: labels[indicator] ? indicator : null,
     steps: steps.length ? steps.reduce(function (n, r) { return n + r.steps; }, 0) : null,
@@ -202,13 +213,35 @@ function buildDailySummary_(date, windows, data) {
     activeMinutes: rows.reduce(function (n, r) { return n + r.activeMinutes; }, 0),
     sleepAccess: data.sleepAccess,
     source: data.source,
+    syncWarning: data.syncWarning || null,
     diagnostics: (data.diagnostics || []).filter(function (entry) { return entry.date === date; }),
-    guidance: indicator !== null && indicator <= 3
+    guidance: nightly && validNumber_(nightly.ansRate) !== null && nightly.ansRate <= 2
+      ? 'Polar 자율신경 회복이 낮은 단계입니다. 수면 길이·끊김·현재 피로를 함께 확인하세요. 낮의 심리적 스트레스 원인까지 알 수 있는 값은 아닙니다.'
+      : indicator !== null && indicator <= 3
       ? '일정 사이 쉬는 시간을 먼저 확보하고, 운동 강도는 오늘 느끼는 피로와 함께 결정하세요.'
       : indicator !== null
         ? '회복 기록과 현재 몸 상태가 일치하는지 확인하고 오늘 일정을 조절하세요.'
         : '오늘 날짜의 회복 기록이 아직 없습니다. 어제 값을 오늘 상태로 사용하지 않습니다.'
   };
+}
+
+function compareNightlyHistory_(date, nightly, history) {
+  if (!nightly) return null;
+  var byDate = {};
+  history.forEach(function (n) {
+    var distance = localDayStartMs_(date) - localDayStartMs_(n.sleepResultDate);
+    if (distance > 0 && distance <= HEALINE.baselineDays * 86400000 &&
+        positiveNumber_(n.meanNightlyRecoveryRmssd) && positiveNumber_(n.meanNightlyRecoveryRri)) byDate[n.sleepResultDate] = n;
+  });
+  var dates = Object.keys(byDate).sort();
+  if (dates.length < 5 || localDayStartMs_(date) - localDayStartMs_(dates[dates.length - 1]) > 4 * 86400000) return null;
+  var rmssd = median_(dates.map(function (d) { return byDate[d].meanNightlyRecoveryRmssd; }));
+  var heart = median_(dates.map(function (d) { return 60000 / byDate[d].meanNightlyRecoveryRri; }));
+  var currentRmssd = positiveNumber_(nightly.meanNightlyRecoveryRmssd), rri = positiveNumber_(nightly.meanNightlyRecoveryRri);
+  return { reference: 'previous_received_nights_within_14_days', dates: dates, nights: dates.length,
+    medianRmssdMs: round_(rmssd, 1), medianHeartRateFromRriBpm: round_(heart, 1),
+    rmssdChangePercent: currentRmssd ? round_((currentRmssd / rmssd - 1) * 100, 1) : null,
+    heartRateChangeBpm: rri ? round_(60000 / rri - heart, 1) : null };
 }
 
 function seoulHourPure_(timestampMs) { return new Date(timestampMs + 9 * 3600000).getUTCHours(); }
