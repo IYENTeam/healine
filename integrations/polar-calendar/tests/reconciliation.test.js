@@ -5,6 +5,7 @@ const { load } = require('./helpers');
 function environment() {
   const result = load();
   const c = result.context;
+  c.LockService={getScriptLock:()=>({tryLock:()=>true,releaseLock(){}})};
   result.properties.setProperties({HEALINE_PLATFORM_URL:'https://healine.example.com',HEALINE_PLATFORM_COLLECTOR_KEY:'test-key'});
   c.readPlatformObservations_ = () => ({heartRateSamples:[],metSamples:[],stepSamples:[],sleeps:[]});
   c.writeHealineRange_ = () => ({hourlyRecordCount:3});
@@ -82,6 +83,21 @@ test('recent polling respects calendar cooldown while continuing source collecti
   assert.ok(result.calendarDeferredUntil);
   assert.equal(fetches,2);
   assert.equal(writes,1);
+});
+
+test('Korean Calendar creation limits pause both cached and live backfill', () => {
+  const {context:c}=environment();
+  c.LockService={getUserLock:()=>({tryLock:()=>true,releaseLock(){}})};
+  const end=c.formatIsoDate_(new Date());
+  c.queueHealineBackfill(c.addIsoDays_(end,-2),end);
+  let writes=0;
+  c.writeHealineRange_=()=>{writes++;throw Error('짧은 시간에 캘린더 또는 캘린더 이벤트를 너무 많이 만들거나 삭제했습니다. 잠시 후 다시 시도해 주세요.');};
+  const result=c.continueHealineBackfill_(true);
+  assert.equal(result.length,1);assert.equal(result[0].calendarLimited,true);
+  assert.equal(c.reconcileHistoricalDay_(false),null);
+  assert.equal(c.reconcileHistoricalDay_(true),null);
+  assert.equal(writes,1);
+  assert.equal(c.isCalendarRateLimit_('Healine 플랫폼 요청 실패 (500)'),false);
 });
 
 test('cached replay does not retry the same failing date within one invocation', () => {

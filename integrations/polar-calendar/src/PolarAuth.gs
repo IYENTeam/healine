@@ -141,43 +141,78 @@ function verifyOauthState_(receivedState) {
 }
 
 function exchangeAuthorizationCode_(code) {
-  var config = assertHealineConfigured_();
-  var token = requestPolarToken_({
-    grant_type: 'authorization_code',
-    code: code,
-    redirect_uri: config.redirectUri
+  return withPolarTokenLock_(function () {
+    var config = assertHealineConfigured_();
+    var token = requestPolarToken_({
+      grant_type: 'authorization_code', code: code, redirect_uri: config.redirectUri
+    });
+    if (!token.refresh_token) throw new Error('Polar 연결 응답에 갱신 토큰이 없습니다. 기존 인증은 유지됩니다.');
+    savePolarToken_(token, 'authorization_code');
   });
-  PropertiesService.getUserProperties().deleteProperty(HEALINE.propertyKeys.sleepAccess);
-  PropertiesService.getUserProperties().deleteProperty(HEALINE.propertyKeys.grantedScopes);
-  savePolarToken_(token);
 }
 
-function getValidPolarAccessToken_() {
+// Separate from the long-running collector's user lock. Token exchanges and
+// callback saves share this short lock; no code holding it acquires a user lock.
+function withPolarTokenLock_(action) {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) throw new Error('Polar 인증 갱신 중입니다. 다음 실행에서 다시 시도합니다.');
+  try { return action(); } finally { lock.releaseLock(); }
+}
+
+function getPolarTokenLifecycle_() {
+  return JSON.parse(PropertiesService.getUserProperties().getProperty(HEALINE.propertyKeys.tokenLifecycle) || '{}');
+}
+
+function isPolarReconnectRequired_() {
+  var lifecycle = getPolarTokenLifecycle_();
+  if (lifecycle.reconnectRequired !== undefined) return Boolean(lifecycle.reconnectRequired);
+  var failure = JSON.parse(PropertiesService.getUserProperties().getProperty(HEALINE.propertyKeys.lastError) || 'null');
+  return Boolean(failure && failure.code === 'polar_reconnect_required');
+}
+
+function storedPolarAccessToken_() {
   var properties = PropertiesService.getUserProperties();
   var accessToken = properties.getProperty(HEALINE.propertyKeys.accessToken);
   var expiresAt = Number(properties.getProperty(HEALINE.propertyKeys.expiresAt) || 0);
-
-  if (accessToken && Date.now() < expiresAt - 5 * 60 * 1000) return accessToken;
-  return refreshPolarToken_();
+  return accessToken && Date.now() < expiresAt - 5 * 60 * 1000 ? accessToken : null;
 }
 
-function refreshPolarToken_() {
-  var properties = PropertiesService.getUserProperties();
-  var failure = JSON.parse(properties.getProperty(HEALINE.propertyKeys.lastError) || 'null');
-  if (failure && failure.code === 'polar_reconnect_required') {
-    throw new Error('POLAR_RECONNECT_REQUIRED: Polar를 다시 연결하세요.');
-  }
-  var refreshToken = properties.getProperty(HEALINE.propertyKeys.refreshToken);
-  if (!refreshToken) {
-    throw new Error('Polar 인증이 없습니다. 배포한 웹 앱 URL을 열어 먼저 연결하세요.');
-  }
+function getValidPolarAccessToken_() {
+  return storedPolarAccessToken_() || refreshPolarToken_();
+}
 
-  var token = requestPolarToken_({
-    grant_type: 'refresh_token',
-    refresh_token: refreshToken
+function refreshPolarToken_(rejectedAccessToken, force) {
+  return withPolarTokenLock_(function () {
+    var properties = PropertiesService.getUserProperties();
+    // A concurrent callback/refresh may already have replaced the rejected token.
+    var current = storedPolarAccessToken_();
+    if (!force && current && (!rejectedAccessToken || current !== rejectedAccessToken)) return current;
+    var lifecycle = getPolarTokenLifecycle_();
+    if (isPolarReconnectRequired_()) {
+      var blocked = new Error('POLAR_RECONNECT_REQUIRED: Polar를 다시 연결하세요.');
+      blocked.polarGeneration = lifecycle.generation || 0;
+      throw blocked;
+    }
+    var refreshToken = properties.getProperty(HEALINE.propertyKeys.refreshToken);
+    if (!refreshToken) {
+      var missing = new Error('Polar 인증이 없습니다. 배포한 웹 앱 URL을 열어 먼저 연결하세요.');
+      missing.polarGeneration = lifecycle.generation || 0;
+      throw missing;
+    }
+    var token;
+    try { token = requestPolarToken_({ grant_type: 'refresh_token', refresh_token: refreshToken }); }
+    catch (error) {
+      // Persist the protocol error, not provider text which may contain tokens.
+      lifecycle.lastFailure = { at: new Date().toISOString(), grantType: 'refresh_token',
+        httpStatus: error.httpStatus || null, oauthError: error.oauthError || 'transport_error' };
+      lifecycle.reconnectRequired = error.oauthError === 'invalid_grant';
+      properties.setProperty(HEALINE.propertyKeys.tokenLifecycle, JSON.stringify(lifecycle));
+      error.polarGeneration = lifecycle.generation || 0;
+      throw error;
+    }
+    savePolarToken_(token, 'refresh_token');
+    return token.access_token;
   });
-  savePolarToken_(token);
-  return token.access_token;
 }
 
 function requestPolarToken_(payload) {
@@ -197,31 +232,64 @@ function requestPolarToken_(payload) {
   var body = response.getContentText();
 
   if (status < 200 || status >= 300) {
-    throw new Error('Polar token 요청 실패 (' + status + '): ' + safeApiError_(body));
+    var oauthError = 'unknown_error';
+    try {
+      var code = JSON.parse(body).error;
+      if (['invalid_grant', 'invalid_client', 'invalid_request', 'unauthorized_client',
+        'unsupported_grant_type', 'invalid_scope', 'temporarily_unavailable', 'server_error'].indexOf(code) >= 0) oauthError = code;
+    } catch (ignored) {}
+    var error = new Error('Polar token 요청 실패 (' + status + '): ' + oauthError);
+    error.httpStatus = status; error.oauthError = oauthError;
+    throw error;
   }
 
-  var parsed = JSON.parse(body);
+  var parsed;
+  try { parsed = JSON.parse(body); }
+  catch (ignored) { throw new Error('Polar token 응답이 JSON 형식이 아닙니다.'); }
   if (!parsed.access_token) throw new Error('Polar token 응답에 access_token이 없습니다.');
   return parsed;
 }
 
-function savePolarToken_(token) {
+// Production callers hold the token lock through exchange and persistence.
+function savePolarToken_(token, grantType) {
   var properties = PropertiesService.getUserProperties();
+  var lifetime = token.expires_in === undefined ? 43199 : Number(token.expires_in);
+  if (!token.access_token || !Number.isFinite(lifetime) || lifetime <= 0) {
+    throw new Error('Polar token 응답의 유효 시간을 확인할 수 없습니다.');
+  }
+  var lifecycle = getPolarTokenLifecycle_();
+  var wasDisconnected = isPolarReconnectRequired_();
+  var previousRefresh = properties.getProperty(HEALINE.propertyKeys.refreshToken);
   var lastError = JSON.parse(properties.getProperty(HEALINE.propertyKeys.lastError) || 'null');
-  properties.deleteProperty(HEALINE.propertyKeys.lastError);
   var values = {};
   values[HEALINE.propertyKeys.accessToken] = token.access_token;
-  values[HEALINE.propertyKeys.expiresAt] = String(
-    Date.now() + Number(token.expires_in || 43199) * 1000
-  );
+  var expiresAt = Date.now() + lifetime * 1000, now = new Date().toISOString();
+  values[HEALINE.propertyKeys.expiresAt] = String(expiresAt);
   if (token.refresh_token) values[HEALINE.propertyKeys.refreshToken] = token.refresh_token;
+  if (grantType === 'authorization_code') {
+    properties.deleteProperty(HEALINE.propertyKeys.sleepAccess);
+    properties.deleteProperty(HEALINE.propertyKeys.grantedScopes);
+  }
   if (token.scope) {
     values[HEALINE.propertyKeys.grantedScopes] = String(token.scope);
     values[HEALINE.propertyKeys.sleepAccess] = String(token.scope).split(/\s+/).indexOf('sleep:read') >= 0
       ? 'granted' : 'denied';
   }
+  lifecycle.generation = (lifecycle.generation || 0) + 1;
+  lifecycle.lastTokenAt = now;
+  lifecycle.accessExpiresAt = new Date(expiresAt).toISOString();
+  lifecycle.lastGrantType = grantType || 'unknown';
+  lifecycle.reconnectRequired = false;
+  lifecycle.refreshTokenReplaced = Boolean(token.refresh_token && token.refresh_token !== previousRefresh);
+  if (grantType === 'authorization_code') lifecycle.lastAuthorizedAt = now;
+  if (grantType === 'refresh_token') {
+    lifecycle.lastRefreshAt = now;
+    lifecycle.refreshCount = (lifecycle.refreshCount || 0) + 1;
+  }
+  values[HEALINE.propertyKeys.tokenLifecycle] = JSON.stringify(lifecycle);
   properties.setProperties(values);
-  if (lastError && lastError.code === 'polar_reconnect_required' && isHealinePlatformConnected_()) {
+  properties.deleteProperty(HEALINE.propertyKeys.lastError);
+  if ((wasDisconnected || lastError && lastError.code === 'polar_reconnect_required') && isHealinePlatformConnected_()) {
     // OAuth can finish during a locked replay. Merge the request on the next
     // live run, so a cached replay checkpoint cannot overwrite or acknowledge it.
     properties.setProperty(HEALINE.propertyKeys.calendarCatchupPending, '1');
@@ -229,19 +297,32 @@ function savePolarToken_(token) {
 }
 
 function resetPolarAuthorization() {
-  var properties = PropertiesService.getUserProperties();
-  [
-    HEALINE.propertyKeys.accessToken,
-    HEALINE.propertyKeys.refreshToken,
-    HEALINE.propertyKeys.expiresAt,
-    HEALINE.propertyKeys.grantedScopes,
-    HEALINE.propertyKeys.sleepAccess,
-    HEALINE.propertyKeys.oauthState,
-    HEALINE.propertyKeys.oauthStateExpiresAt
-  ].forEach(function (key) {
-    properties.deleteProperty(key);
+  return withPolarTokenLock_(function () {
+    var properties = PropertiesService.getUserProperties();
+    [
+      HEALINE.propertyKeys.accessToken,
+      HEALINE.propertyKeys.refreshToken,
+      HEALINE.propertyKeys.expiresAt,
+      HEALINE.propertyKeys.grantedScopes,
+      HEALINE.propertyKeys.sleepAccess,
+      HEALINE.propertyKeys.oauthState,
+      HEALINE.propertyKeys.oauthStateExpiresAt,
+      HEALINE.propertyKeys.tokenLifecycle
+    ].forEach(function (key) {
+      properties.deleteProperty(key);
+    });
+    console.log('저장된 Polar 토큰을 삭제했습니다.');
   });
-  console.log('저장된 Polar 토큰을 삭제했습니다.');
+}
+
+// Operator check: exercise a real refresh and resource request without exposing credentials.
+function verifyPolarAuthorization() {
+  refreshPolarToken_(null, true);
+  var today = formatIsoDate_(new Date());
+  polarGet_('/nightly-recharge-results', { from: today, to: addIsoDays_(today, 1) });
+  var result = { verifiedAt: new Date().toISOString(), tokenLifecycle: getPolarTokenLifecycle_() };
+  console.log(JSON.stringify(result));
+  return result;
 }
 
 function encodeQuery_(values) {

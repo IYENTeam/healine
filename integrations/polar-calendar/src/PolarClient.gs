@@ -3,11 +3,10 @@ function polarGet_(path, parameters, options) {
   var url = HEALINE.apiBaseUrl + path;
   if (parameters && Object.keys(parameters).length) url += '?' + encodeQuery_(parameters);
 
-  var response = fetchPolarWithToken_(url, getValidPolarAccessToken_());
+  var accessToken = getValidPolarAccessToken_();
+  var response = fetchPolarWithToken_(url, accessToken);
   if (response.getResponseCode() === 401 && !options.didRetry) {
-    var userProperties = PropertiesService.getUserProperties();
-    userProperties.deleteProperty(HEALINE.propertyKeys.accessToken);
-    response = fetchPolarWithToken_(url, refreshPolarToken_());
+    response = fetchPolarWithToken_(url, refreshPolarToken_(accessToken));
   }
 
   var status = response.getResponseCode();
@@ -252,8 +251,9 @@ function syncPlatformRange_(from, to) {
       var query = { from: date, to: addIsoDays_(date, 1) };
       if (request.features) query.features = request.features;
       var url = HEALINE.apiBaseUrl + request.path + '?' + encodeQuery_(query);
-      var response = fetchPolarWithToken_(url, getValidPolarAccessToken_());
-      if (response.getResponseCode() === 401) response = fetchPolarWithToken_(url, refreshPolarToken_());
+      var accessToken = getValidPolarAccessToken_();
+      var response = fetchPolarWithToken_(url, accessToken);
+      if (response.getResponseCode() === 401) response = fetchPolarWithToken_(url, refreshPolarToken_(accessToken));
       var body;
       try { body = JSON.parse(response.getContentText() || '{}'); }
       catch (ignored) { body = { responseFormat: 'non-json' }; }

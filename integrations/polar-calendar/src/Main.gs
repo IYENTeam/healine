@@ -99,11 +99,12 @@ function getHealineStatus() {
   var baseline = getBaseline_();
   var lastError = JSON.parse(properties.getProperty(HEALINE.propertyKeys.lastError) || 'null');
   var hasToken = Boolean(properties.getProperty(HEALINE.propertyKeys.refreshToken));
-  var reconnectRequired = Boolean(lastError && lastError.code === 'polar_reconnect_required');
+  var reconnectRequired = isPolarReconnectRequired_();
   var status = {
     configured: Boolean(config.clientId && config.clientSecret && config.redirectUri),
     polarAuthorized: hasToken && !reconnectRequired,
     polarAuthorizationState: reconnectRequired ? 'reconnect_required' : hasToken ? 'token_present_not_verified' : 'not_connected',
+    tokenLifecycle: getPolarTokenLifecycle_(),
     calendarName: config.calendarName,
     platformConnected: isHealinePlatformConnected_(),
     baselineVersion: baseline && baseline.version,
@@ -221,6 +222,10 @@ function evaluateHealineRange_(data, startMs, endMs, baseline) {
 }
 
 function recordHealineFailure_(error) {
+  if (error.polarGeneration !== undefined && error.polarGeneration !== (getPolarTokenLifecycle_().generation || 0)) {
+    return { at: new Date().toISOString(), code: 'sync_superseded',
+      message: 'Polar 연결이 갱신되었습니다. 다음 실행에서 다시 수집합니다.' };
+  }
   var auth = /invalid_grant|POLAR_RECONNECT_REQUIRED|Polar 인증이 없습니다/.test(String(error.message));
   var failure = { at: new Date().toISOString(), code: auth ? 'polar_reconnect_required' : 'sync_failed',
     message: auth ? 'Polar 인증을 갱신할 수 없습니다. Healine 설정에서 Polar를 다시 연결하세요.' :
@@ -255,7 +260,7 @@ function getHealineBackfill_() {
 }
 
 function isCalendarRateLimit_(message) {
-  return /too many calendars or calendar events|too many times.*calendar|rate.?limit.?exceeded|quota.*calendar/i.test(String(message));
+  return /too many calendars or calendar events|too many times.*calendar|rate.?limit.?exceeded|quota.*calendar|짧은 시간에 캘린더|캘린더.*너무 많이|Calendar.*호출.*너무 많/i.test(String(message));
 }
 
 // Called only from a live run holding the user lock, never from cached replay.
@@ -276,7 +281,7 @@ function reconcileHistoricalDay_(cachedOnly, attemptedDates) {
   var props = PropertiesService.getUserProperties(), state = getHealineBackfill_();
   if ((state.calendarRetryAt || 0) > Date.now()) return null;
   var sourceError = JSON.parse(props.getProperty(HEALINE.propertyKeys.lastError) || 'null');
-  if (!cachedOnly && sourceError && sourceError.code === 'polar_reconnect_required') return null;
+  if (!cachedOnly && isPolarReconnectRequired_()) return null;
   var today = formatIsoDate_(new Date()), first = addIsoDays_(today, -30), yesterday = addIsoDays_(today, -1);
   var date = state.dates.filter(function (d) {
     var failure = state.failures[d];

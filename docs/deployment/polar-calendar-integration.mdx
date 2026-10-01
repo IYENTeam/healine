@@ -139,14 +139,27 @@ fetch. Unreceived periods cannot be recreated without source data.
 
 Calendar creation throttling pauses all Calendar writes until the persisted
 `calendarRetryAt` deadline, including cached replay; source collection can
-continue. The latest failure records its stage and message. Do not clear this
+continue. English and Korean creation-limit messages are recognized. The latest failure records its stage and message. Do not clear this
 deadline to force repeated attempts during a service restriction.
 
 An `invalid_grant` blocks repeated token refresh attempts until the owner
 reconnects through the same web app. Daily Calendar records show the interruption
 and retain known measurements. Successful reauthorization records a durable
-catch-up request; the next live run queues the latest 30 days and clears retry
-delays. A cached replay in progress cannot consume that fresh-source request.
+catch-up request; the next live run queues the latest 30 days and clears source
+retry delays while preserving Calendar cooldown. A cached replay in progress
+cannot consume that fresh-source request.
+
+Token exchange, refresh and persistence share a short script lock, separate from
+the collector's user lock. A delayed 401 reuses a concurrently replaced token;
+an older generation's failed refresh cannot disable a newer authorization.
+`getHealineStatus().tokenLifecycle` contains only timestamps, generation/counter,
+replacement status and HTTP/OAuth error codes. Credentials and provider error
+descriptions are never written to diagnostics. `verifyPolarAuthorization()`
+performs a real refresh and recovery API request, then reports sanitized metadata.
+Use it after an authorization repair; it changes the stored token as a normal
+refresh does. Transient service errors preserve credentials and remain retryable.
+The `invalid_grant` code alone does not distinguish expiry, revocation or a
+credential race. Do not promise that a revoked grant can recover without consent.
 Sleep/ANS components are rehydrated from retained
 raw snapshots on read, including successful snapshots behind newer failures;
 no destructive historical migration is required.

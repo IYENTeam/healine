@@ -83,6 +83,28 @@ Calendar fetch as proof that all wearable history has arrived.
 
 ## What verification establishes
 
+### OAuth lifecycle review (2026-10-01)
+
+[Polar's authorization contract](https://www.polar.com/polar-api-v4/#token-endpoint)
+describes a 12-hour access token and refresh-token renewal. The collector uses
+the actual `expires_in` value: a live renewal during verification returned 3,599
+seconds. Normal access-token expiry should not require another login. The
+[OAuth error definition](https://www.rfc-editor.org/rfc/rfc6749#section-5.2)
+allows several causes for `invalid_grant`; that code does not identify which one
+occurred. A preserved refresh failure proves rejection, not expiry versus revocation.
+
+The [Google Workspace OAuth library's locking guidance](https://github.com/googleworkspace/apps-script-oauth2#locking)
+describes concurrent refresh races. Healine now serializes callback exchange,
+renewal and persistence with a short script lock, separate from the collector's
+longer user lock. After acquiring it, a caller rereads the current credentials.
+A stale 401 cannot delete or unnecessarily renew a newer access token, and an
+older generation's failure cannot mark a new authorization as disconnected.
+These changes eliminate reproducible client races; they do not establish that
+a race caused a past provider rejection. Sanitized lifecycle metadata and a
+real refresh/resource probe distinguish stored credentials from tested renewal.
+
+### Data and synchronization
+
 Regression tests cover source-field parsing, zero versus missing values, recovery
 rehydration behind a newer failed response, same-day/future exclusion, known
 sleep exclusion, matching current and previous activity, reference freshness,

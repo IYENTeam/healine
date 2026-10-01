@@ -36,6 +36,7 @@ var HEALINE = Object.freeze({
     accessToken: 'POLAR_ACCESS_TOKEN',
     refreshToken: 'POLAR_REFRESH_TOKEN',
     expiresAt: 'POLAR_EXPIRES_AT',
+    tokenLifecycle: 'POLAR_TOKEN_LIFECYCLE',
     oauthState: 'POLAR_OAUTH_STATE',
     oauthStateExpiresAt: 'POLAR_OAUTH_STATE_EXPIRES_AT',
     lastResult: 'HEALINE_LAST_RESULT',
