@@ -1,0 +1,122 @@
+---
+title: Polar recovery evidence and comparison design
+description: Primary research, SDK constraints and the limits of Healine's descriptive comparisons.
+---
+
+## Decision and scope
+
+Reviewed on 2026-09-28. Healine separates overnight recovery, sleep characteristics,
+daytime activity and observed heart rate. It compares a person's observations
+under similar recorded activity and time conditions. It does not estimate a
+psychological stress probability or infer causation from Calendar events.
+
+The sources below inform that separation and the data contract. They do not
+validate the numeric matching tolerances or display boundary implemented here.
+Those remain explicit engineering choices, documented in the
+[collector README](../../integrations/polar-calendar/README.md).
+
+## Research considered
+
+| Primary source | Relevant evidence and limits | Implementation consequence |
+|---|---|---|
+| [Kargarandehkordi et al., npj Mental Health Research, May 2026](https://www.nature.com/articles/s44184-026-00210-9) | A four-week observational study of 20 adults with self-reported hypertension compared individual and pooled models using wearable signals, momentary stress ratings and blood pressure. Its performance is not transferable to an unlabeled single-person Polar feed. | Use personal history; do not borrow a published model's accuracy or label heart-rate deviations as psychological stress. |
+| [Presby et al., JMIR, 2025](https://www.jmir.org/2025/1/e64955/) | A large longitudinal study relates wearable physiology and monthly mental-health surveys, including within-person variation. These associations are not moment-to-moment causal detection. The abstract was accessible; the publisher's full text was blocked during this review. | Show dated overnight trends and their reference population, separate from daytime observations. |
+| [Unobtrusive stress detection using wearables, Frontiers in Computer Science, 2025](https://www.frontiersin.org/journals/computer-science/articles/10.3389/fcomp.2025.1575404/pdf) | A university-setting study examines real-world wearable monitoring with noisy and incomplete observations. Group-level results cannot validate an individual's stress label. | Retain missingness and activity context; expose the number of comparable dates and windows. |
+| [Nazaret et al., npj Digital Medicine, 2023](https://www.nature.com/articles/s41746-023-00926-4) | A personalized model describes heart-rate response to exercise and environmental conditions in a large workout dataset. It is an exercise/fitness model, not a psychological stress detector. | Match recent activity as well as current activity; avoid treating activity-related recovery as unexplained tension. |
+| [Detecting prolonged stress in real life, JMIR, 2023](https://www.jmir.org/2023/1/e39995) | The naturalistic study combines physiological recording with ecological momentary assessments. Its design distinguishes exposure, appraisal and physiological response. The accessible indexed abstract informed this review. | Calendar plans and physiological changes do not replace subjective labels. Optional notes remain useful without becoming mandatory input. |
+| [Brown et al., arXiv, August 2026](https://arxiv.org/abs/2608.03251) | A small seven-participant pilot combines event annotations and wearable data. This is a preprint and exploratory feasibility evidence, not proof of diagnostic or causal accuracy. | Keep source measurements and optional context available for later reflection; do not train or validate a stress model on its own generated labels. |
+
+## Vendor API and SDK checks
+
+- [Polar AccessLink Dynamic API v4](https://www.polar.com/polar-api-v4/) and its
+  [Swagger contract](https://www.polar.com/polar-api-v4/swagger.yaml) define the
+  existing cloud pipeline. Activity and featured sleep requests remain bounded
+  to a day. Recovery fields retain their units and source names. Optional zero
+  interval/HRV sentinels are missing values; zero signed ANS status is valid.
+- [Nightly Recharge](https://support.polar.com/en/nightly-recharge-recovery-measurement)
+  separates autonomic recovery from sleep charge. ANS ratings are ordered levels,
+  not stress percentages. ANS and its physiological inputs overlap, so agreement
+  between them is not independent validation.
+- [Sleep Plus Stages](https://support.polar.com/en/sleep-plus-stages-sleep-tracking)
+  describes amount, solidity and regeneration components. Component scores are
+  exported as points. Start-to-end duration includes wake intervals and is not
+  substituted for net sleep time.
+- The current [Polar BLE SDK](https://github.com/polarofficial/polar-ble-sdk) lists
+  [Vantage V3 data capabilities](https://github.com/polarofficial/polar-ble-sdk/blob/master/documentation/products/PolarVantageV3andGritX2Pro.md),
+  including PPI and activity data. However, the
+  [watch streaming procedure](https://github.com/polarofficial/polar-ble-sdk/blob/master/documentation/UsingSDKWithWatches.md)
+  requires device-side sharing and an exercise-wait screen; it is not a drop-in
+  replacement for unattended cloud collection. Healine therefore retains
+  AccessLink and does not change the watch pairing or install a phone collector.
+- Polar's [PPI quality guidance](https://github.com/polarofficial/polar-ble-sdk/blob/master/documentation/PPIData.md)
+  requires attention to movement blockers and supported skin-contact flags.
+  Sparse bpm samples cannot reconstruct beat-to-beat HRV. Adding daytime PPI
+  later requires an actual supported source and quality checks; it cannot be
+  synthesized from the current heart-rate stream.
+
+## Recovery and synchronization checks
+
+[Cloudflare documents Quick Tunnels as development infrastructure](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/do-more-with-tunnels/trycloudflare/).
+Use a fixed collector-only origin with a supervised process. This preserves the
+authorization boundary while avoiding a new random address after a restart.
+
+[Apps Script quotas](https://developers.google.com/apps-script/guides/services/quotas)
+include a six-minute execution limit and a 9KB limit per property. Historical
+work is split into dates, with completion recorded only after Calendar writes;
+failure of one date does not acknowledge it or prevent other due dates from
+being processed. Detailed comparison caches are split into daily properties.
+
+[Google Calendar usage limits](https://developers.google.com/workspace/calendar/api/guides/quota)
+also include operational throttling for rapid writes to one calendar, separate
+from published API quotas. A creation-limit response pauses the writer across
+dates with a persisted retry deadline; cached replay observes the same pause.
+The chosen initial 15-minute retry delay is an operating policy, not a promise
+that Google's restriction will have cleared by then.
+
+[CalendarEvent setters and tags](https://developers.google.com/apps-script/reference/calendar/calendar-event)
+support updating the same managed entries while preserving notes.
+[Calendar incremental sync](https://developers.google.com/workspace/calendar/api/guides/sync)
+is relevant when consuming external Calendar changes, but a Calendar sync token
+does not detect late Polar data. The collector therefore reconciles a rolling
+source-date range and a durable repair queue instead of treating a successful
+Calendar fetch as proof that all wearable history has arrived.
+
+## What verification establishes
+
+### OAuth lifecycle review (2026-10-01)
+
+[Polar's authorization contract](https://www.polar.com/polar-api-v4/#token-endpoint)
+describes a 12-hour access token and refresh-token renewal. The collector uses
+the actual `expires_in` value: a live renewal during verification returned 3,599
+seconds. Normal access-token expiry should not require another login. The
+[OAuth error definition](https://www.rfc-editor.org/rfc/rfc6749#section-5.2)
+allows several causes for `invalid_grant`; that code does not identify which one
+occurred. A preserved refresh failure proves rejection, not expiry versus revocation.
+
+The [Google Workspace OAuth library's locking guidance](https://github.com/googleworkspace/apps-script-oauth2#locking)
+describes concurrent refresh races. Healine now serializes callback exchange,
+renewal and persistence with a short script lock, separate from the collector's
+longer user lock. After acquiring it, a caller rereads the current credentials.
+A stale 401 cannot delete or unnecessarily renew a newer access token, and an
+older generation's failure cannot mark a new authorization as disconnected.
+These changes eliminate reproducible client races; they do not establish that
+a race caused a past provider rejection. Sanitized lifecycle metadata and a
+real refresh/resource probe distinguish stored credentials from tested renewal.
+
+### Data and synchronization
+
+Regression tests cover source-field parsing, zero versus missing values, recovery
+rehydration behind a newer failed response, same-day/future exclusion, known
+sleep exclusion, matching current and previous activity, reference freshness,
+preserving notes, duplicate-free writes, retry checkpoints and credential-origin
+rollback. Live readback exposed Calendar's truncation of long descriptions;
+regression coverage now simulates that behavior and verifies complete JSON and
+preserved notes under the writer's conservative size budget. Replay against a
+private frozen history checks comparison coverage and
+reference dates. Neither synthetic tests nor increased coverage establish
+psychological stress detection accuracy.
+
+Future accuracy evaluation needs independent subjective labels aligned to actual
+measurement times and a chronological holdout. Do not select thresholds on that
+holdout, validate one derived recovery score against its own components, or use
+Calendar event titles as ground-truth stress labels.
