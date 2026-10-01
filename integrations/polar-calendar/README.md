@@ -116,7 +116,7 @@ scripts/deploy-existing.sh --apply "Healine recovery and activity calendar"
 
 Polar의 접근 토큰은 서버가 반환한 `expires_in`을 따라 만료 5분 전에 자동 갱신합니다. 공식 문서는 12시간을 설명하지만 실제 응답의 유효 시간이 다를 수 있으므로 고정된 12시간을 가정하지 않습니다. 로그인 콜백과 갱신 요청은 토큰 전용 잠금을 공유합니다. 이미 교체된 토큰에 대한 늦은 401은 최신 토큰으로 재시도하고, 이전 인증 세대의 실패는 새 연결을 차단하지 않습니다. `tokenLifecycle`에는 갱신 시각·횟수·만료 시각·갱신 토큰 교체 여부와 최근 실패의 HTTP 상태·OAuth 오류 코드만 저장합니다. 토큰 값이나 서버의 원문 오류 설명은 기록하지 않습니다. `invalid_grant`만으로 만료·철회·경합 중 어느 이유인지 단정하지 않습니다.
 
-Google Calendar가 단시간 생성 제한을 반환하면 해당 실행을 멈추고, `backfill.calendarRetryAt`까지 다른 날짜의 캘린더 쓰기도 보류합니다. 수집 자체는 계속할 수 있습니다. 저장 기록 재작성도 이 대기를 지키며, 실패 단계와 최근 오류는 `backfill.lastFailure`에 남습니다. 개별 날짜를 쓰다가 중단되면 완료된 시간대는 유지하고, 다음 실행에서 같은 태그를 찾아 이어갑니다.
+Google Calendar가 단시간 생성 제한을 반환하면 해당 실행을 멈추고, `backfill.calendarRetryAt`까지 다른 날짜의 캘린더 쓰기도 보류합니다. 대기 중에도 오늘·어제와 보충 대기열의 Polar 원본을 수집합니다. 과거 날짜는 한 번 수집하면 `backfill.sourceDates`에 기록하고, 캘린더 반영이 끝날 때까지 보충 대기열에 유지합니다. 저장 기록 재작성도 이 대기를 지키며, 실패 단계와 최근 오류는 `backfill.lastFailure`에 남습니다. 개별 날짜를 쓰다가 중단되면 완료된 시간대는 유지하고, 다음 실행에서 같은 태그를 찾아 이어갑니다.
 
 ```bash
 node --test tests/*.test.js

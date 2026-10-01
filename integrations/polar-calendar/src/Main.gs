@@ -35,6 +35,9 @@ function runHealine() {
     }
     var calendarRetryAt = getHealineBackfill_().calendarRetryAt || 0;
     if (calendarRetryAt > Date.now()) {
+      // Calendar throttling must not delay recovery of older provider data.
+      try { reconcileHistoricalDay_(); }
+      catch (sourceError) { console.warn('과거 원본 수집 보류: ' + sourceError.message); }
       var deferred = { calendarDeferredUntil: new Date(calendarRetryAt).toISOString(), syncWarning: data.syncWarning || null };
       console.log(JSON.stringify(deferred));
       return deferred;
@@ -271,6 +274,7 @@ function applyPendingHealineCatchup_() {
     queueHealineBackfill();
     var state = getHealineBackfill_();
     state.failures = {};
+    state.sourceDates = [];
     props.setProperty(HEALINE.propertyKeys.calendarBackfill, JSON.stringify(state));
     props.deleteProperty(HEALINE.propertyKeys.calendarCatchupPending);
   } catch (error) { console.warn('재연결 후 과거 보충 예약 확인 필요: ' + error.message); }
@@ -279,7 +283,8 @@ function applyPendingHealineCatchup_() {
 function reconcileHistoricalDay_(cachedOnly, attemptedDates) {
   if (!isHealinePlatformConnected_()) return null;
   var props = PropertiesService.getUserProperties(), state = getHealineBackfill_();
-  if ((state.calendarRetryAt || 0) > Date.now()) return null;
+  var calendarPaused = (state.calendarRetryAt || 0) > Date.now();
+  if (calendarPaused && cachedOnly) return null;
   var sourceError = JSON.parse(props.getProperty(HEALINE.propertyKeys.lastError) || 'null');
   if (!cachedOnly && isPolarReconnectRequired_()) return null;
   var today = formatIsoDate_(new Date()), first = addIsoDays_(today, -30), yesterday = addIsoDays_(today, -1);
@@ -287,10 +292,12 @@ function reconcileHistoricalDay_(cachedOnly, attemptedDates) {
     var failure = state.failures[d];
     var sourceFailure = failure && (failure.phase === 'fetch_source' || failure.phase === 'source_completion');
     return (!attemptedDates || attemptedDates.indexOf(d) < 0) &&
-      (!failure || failure.retryAt <= Date.now() || (cachedOnly && sourceFailure));
+      (!calendarPaused || (state.sourceDates || []).indexOf(d) < 0) &&
+      (!failure || failure.retryAt <= Date.now() || (cachedOnly && sourceFailure) || (calendarPaused && !sourceFailure));
   })[0];
   var queued = Boolean(date);
   if (!date) {
+    if (calendarPaused) return null;
     if (state.dates.length) return null;
     date = props.getProperty(HEALINE.propertyKeys.calendarSweepDate);
     if (!date || date < first || date >= yesterday) date = first;
@@ -301,6 +308,16 @@ function reconcileHistoricalDay_(cachedOnly, attemptedDates) {
     if (!cachedOnly) {
       try { complete = syncPlatformRange_(date, to).complete; }
       catch (error) { warning = recordHealineFailure_(error).message; complete = false; }
+    }
+    if (calendarPaused) {
+      if (!complete) throw new Error('provider_retry_required');
+      state.sourceDates = Array.from(new Set((state.sourceDates || []).concat([date])));
+      state.lastSourceCollection = { date: date, completedAt: new Date().toISOString() };
+      props.setProperty(HEALINE.propertyKeys.calendarBackfill, JSON.stringify(state));
+      var sourceResult = { date: date, sourceOnly: true, remainingDates: state.dates.length,
+        calendarDeferredUntil: new Date(state.calendarRetryAt).toISOString() };
+      console.log(JSON.stringify(sourceResult));
+      return sourceResult;
     }
     // Historical comparisons must load dates BEFORE the target, not today's baseline.
     var from = addIsoDays_(date, -HEALINE.baselineDays);
@@ -315,6 +332,7 @@ function reconcileHistoricalDay_(cachedOnly, attemptedDates) {
     phase = 'source_completion';
     if (!complete) throw new Error('provider_retry_required');
     if (queued) state.dates = state.dates.filter(function (d) { return d !== date; });
+    state.sourceDates = (state.sourceDates || []).filter(function (d) { return d !== date; });
     delete state.failures[date];
     props.setProperty(HEALINE.propertyKeys.calendarSweepDate, to);
     props.setProperty(HEALINE.propertyKeys.calendarBackfill, JSON.stringify(state));

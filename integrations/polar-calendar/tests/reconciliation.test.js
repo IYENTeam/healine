@@ -53,7 +53,7 @@ test('calendar failure retains its checkpoint and cached replay needs no Polar t
   assert.equal(c.getHealineBackfill_().dates.length,0);
 });
 
-test('calendar creation limits pause all backfill dates, including cached replay', () => {
+test('calendar creation limits pause all Calendar writes, including cached replay', () => {
   const {context:c}=environment();
   c.LockService={getUserLock:()=>({tryLock:()=>true,releaseLock:()=>{}})};
   const end=c.formatIsoDate_(new Date()), start=c.addIsoDays_(end,-2);
@@ -65,7 +65,7 @@ test('calendar creation limits pause all backfill dates, including cached replay
   assert.equal(result[0].calendarLimited,true);
   assert.ok(c.getHealineBackfill_().calendarRetryAt>Date.now());
   assert.equal(c.reconcileHistoricalDay_(true),null);
-  assert.equal(c.reconcileHistoricalDay_(false),null);
+  assert.equal(c.reconcileHistoricalDay_(false).sourceOnly,true);
   assert.equal(writes,1);
   assert.equal(c.getHealineBackfill_().dates.length,2);
 });
@@ -85,7 +85,7 @@ test('recent polling respects calendar cooldown while continuing source collecti
   assert.equal(writes,1);
 });
 
-test('Korean Calendar creation limits pause both cached and live backfill', () => {
+test('Korean Calendar creation limits pause cached and live Calendar writes', () => {
   const {context:c}=environment();
   c.LockService={getUserLock:()=>({tryLock:()=>true,releaseLock(){}})};
   const end=c.formatIsoDate_(new Date());
@@ -94,10 +94,49 @@ test('Korean Calendar creation limits pause both cached and live backfill', () =
   c.writeHealineRange_=()=>{writes++;throw Error('짧은 시간에 캘린더 또는 캘린더 이벤트를 너무 많이 만들거나 삭제했습니다. 잠시 후 다시 시도해 주세요.');};
   const result=c.continueHealineBackfill_(true);
   assert.equal(result.length,1);assert.equal(result[0].calendarLimited,true);
-  assert.equal(c.reconcileHistoricalDay_(false),null);
+  assert.equal(c.reconcileHistoricalDay_(false).sourceOnly,true);
   assert.equal(c.reconcileHistoricalDay_(true),null);
   assert.equal(writes,1);
   assert.equal(c.isCalendarRateLimit_('Healine 플랫폼 요청 실패 (500)'),false);
+});
+
+test('Calendar cooldown collects each pending source date once without acknowledging Calendar completion', () => {
+  const {context:c,properties}=environment();
+  c.LockService={getUserLock:()=>({tryLock:()=>true,releaseLock(){}})};
+  const end=c.formatIsoDate_(new Date()), start=c.addIsoDays_(end,-3);
+  c.queueHealineBackfill(start,end);
+  const state=c.getHealineBackfill_();state.calendarRetryAt=Date.now()+900000;
+  properties.setProperty(c.HEALINE.propertyKeys.calendarBackfill,JSON.stringify(state));
+  const fetched=[];c.syncPlatformRange_=date=>{fetched.push(date);return {complete:true};};
+  c.writeHealineRange_=()=>assert.fail('cooldown must not write to Calendar');
+  c.readPlatformObservations_=()=>assert.fail('no Calendar rendering in source-only mode');
+  assert.equal(c.continueHealineBackfill().length,3);
+  assert.equal(new Set(fetched).size,3);
+  assert.equal(c.getHealineBackfill_().dates.length,3);
+  assert.equal(c.continueHealineBackfill().length,0);
+  assert.equal(fetched.length,3);
+  const ready=c.getHealineBackfill_();ready.calendarRetryAt=0;
+  properties.setProperty(c.HEALINE.propertyKeys.calendarBackfill,JSON.stringify(ready));
+  c.readPlatformObservations_=()=>({heartRateSamples:[],metSamples:[],stepSamples:[],sleeps:[]});
+  c.writeHealineRange_=()=>({hourlyRecordCount:24});
+  assert.equal(c.reconcileHistoricalDay_().remainingDates,2);
+  assert.equal(c.getHealineBackfill_().sourceDates.length,2);
+});
+
+test('source failures during Calendar cooldown stay retryable and do not block other source dates', () => {
+  const {context:c,properties}=environment();
+  const end=c.formatIsoDate_(new Date()), start=c.addIsoDays_(end,-2);
+  c.queueHealineBackfill(start,end);
+  const state=c.getHealineBackfill_();state.calendarRetryAt=Date.now()+900000;
+  properties.setProperty(c.HEALINE.propertyKeys.calendarBackfill,JSON.stringify(state));
+  c.syncPlatformRange_=()=>({complete:false});
+  c.writeHealineRange_=()=>assert.fail('no Calendar writes');
+  assert.equal(c.reconcileHistoricalDay_().pending,true);
+  assert.equal(c.getHealineBackfill_().failures[start].phase,'fetch_source');
+  c.syncPlatformRange_=()=>({complete:true});
+  assert.equal(c.reconcileHistoricalDay_().date,c.addIsoDays_(start,1));
+  assert.equal(c.reconcileHistoricalDay_(),null);
+  assert.equal(c.getHealineBackfill_().dates.length,2);
 });
 
 test('cached replay does not retry the same failing date within one invocation', () => {
@@ -113,7 +152,7 @@ test('cached replay does not retry the same failing date within one invocation',
 });
 
 test('a full failed backfill queue stays within the Apps Script property limit', () => {
-  const {context:c}=environment();
+  const {context:c,properties}=environment();
   c.console={log(){},warn(){}};
   c.buildBaseline_=()=>null;
   const end=c.formatIsoDate_(new Date()), start=c.addIsoDays_(end,-60);
@@ -122,6 +161,10 @@ test('a full failed backfill queue stays within the Apps Script property limit',
   const attempted=[];
   for(let i=0;i<60;i++) attempted.push(c.reconcileHistoricalDay_(true,attempted).date);
   assert.equal(Object.keys(c.getHealineBackfill_().failures).length,60);
+  const state=c.getHealineBackfill_();state.calendarRetryAt=Date.now()+900000;
+  properties.setProperty(c.HEALINE.propertyKeys.calendarBackfill,JSON.stringify(state));
+  for(let i=0;i<60;i++) assert.equal(c.reconcileHistoricalDay_().sourceOnly,true);
+  assert.equal(c.getHealineBackfill_().sourceDates.length,60);
   assert.ok(Buffer.byteLength(JSON.stringify(c.getHealineBackfill_()),'utf8')<8500);
 });
 

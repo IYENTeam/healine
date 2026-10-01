@@ -138,9 +138,13 @@ backfill mode and collection errors. Cached replay is not a successful new provi
 fetch. Unreceived periods cannot be recreated without source data.
 
 Calendar creation throttling pauses all Calendar writes until the persisted
-`calendarRetryAt` deadline, including cached replay; source collection can
-continue. English and Korean creation-limit messages are recognized. The latest failure records its stage and message. Do not clear this
-deadline to force repeated attempts during a service restriction.
+`calendarRetryAt` deadline, including cached replay. During this pause, live runs
+still collect recent data and pending historical dates. Each historical date is
+collected once and recorded in `backfill.sourceDates`; its Calendar job remains
+pending until the write succeeds. Source failures retain their own retry delay.
+English and Korean creation-limit messages are recognized. The latest failure
+records its stage and message. Do not clear the deadline to force repeated attempts
+during a service restriction.
 
 An `invalid_grant` blocks repeated token refresh attempts until the owner
 reconnects through the same web app. Daily Calendar records show the interruption
