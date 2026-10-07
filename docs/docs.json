@@ -156,7 +156,8 @@
             "group": "Deployment",
             "pages": [
               "deployment/docker",
-              "deployment/railway"
+              "deployment/railway",
+              "deployment/polar-calendar-integration"
             ]
           },
           {
@@ -205,6 +206,12 @@
               "GET /api/v1/users/{user_id}",
               "PATCH /api/v1/users/{user_id}",
               "DELETE /api/v1/users/{user_id}"
+            ]
+          },
+          {
+            "group": "Collectors",
+            "pages": [
+              "api-reference/collectors"
             ]
           },
           {

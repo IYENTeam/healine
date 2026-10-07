@@ -167,6 +167,10 @@ volumes
 *.json
 *.xml
 
+# Apps Script deployment configuration and manifest contain no credentials.
+!integrations/polar-calendar/.clasp.json
+!integrations/polar-calendar/src/appsscript.json
+
 # AI instruction local overrides (not committed)
 CLAUDE.local.md
 .claude/

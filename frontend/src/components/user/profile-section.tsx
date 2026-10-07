@@ -16,6 +16,7 @@ import {
 import { formatDate, truncateId } from '@/lib/utils/format';
 import { copyToClipboard } from '@/lib/utils/clipboard';
 import { ConnectionCard } from '@/components/user/connection-card';
+import { CollectorSection } from '@/components/user/collector-section';
 import type { SyncStatusEvent, SyncRunSummary } from '@/lib/api';
 import { DataSummarySection } from '@/components/user/data-summary-section';
 import { useSyncRuns } from '@/hooks/api/use-sync-status';
@@ -200,14 +201,17 @@ export function ProfileSection({ userId, activeRuns }: ProfileSectionProps) {
           </div>
         </div>
 
+        <CollectorSection userId={userId} />
+
         {/* Connected Providers */}
         <div className="rounded-2xl border border-border/60 bg-gradient-to-br from-card/80 to-card/40 backdrop-blur-xl overflow-hidden">
           <div className="px-6 py-4 border-b border-border/60">
             <h2 className="text-sm font-medium text-foreground">
-              Connected Providers
+              Direct Provider Connections
             </h2>
             <p className="text-xs text-muted-foreground mt-1">
-              Wearable devices and health platforms connected to this user
+              OAuth connections managed by this server. The Polar calendar
+              collector is shown above.
             </p>
           </div>
           <div className="p-6">
@@ -248,7 +252,7 @@ export function ProfileSection({ userId, activeRuns }: ProfileSectionProps) {
             ) : (
               <div className="text-center py-8">
                 <p className="text-muted-foreground mb-4">
-                  No providers connected yet
+                  No direct OAuth connections
                 </p>
                 <Button variant="outline" onClick={handleCopyPairLink}>
                   {copied ? (

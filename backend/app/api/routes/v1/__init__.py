@@ -4,6 +4,7 @@ from .api_keys import router as api_keys_router
 from .applications import router as applications_router
 from .archival import router as archival_router
 from .auth import router as auth_router
+from .collectors import router as collectors_router
 from .config import router as config_router
 from .connections import router as connections_router
 from .dashboard import router as dashboard_router
@@ -38,6 +39,7 @@ v1_router = APIRouter()
 
 # --- External: 3rd party integration endpoints ---
 v1_router.include_router(meta_router, tags=["External: Meta"])
+v1_router.include_router(collectors_router, tags=["External: Collectors"])
 v1_router.include_router(users_router, tags=["External: Users"])
 v1_router.include_router(connections_router, tags=["External: Connections"])
 v1_router.include_router(summaries_router, tags=["External: Summaries"])

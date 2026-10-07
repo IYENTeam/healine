@@ -1,6 +1,7 @@
 import type { HealthDataParams, UserQueryParams } from '../api/types';
 
 export const queryKeys = {
+  collector: (userId: string) => ['collector', userId] as const,
   auth: {
     all: ['auth'] as const,
     session: () => [...queryKeys.auth.all, 'session'] as const,

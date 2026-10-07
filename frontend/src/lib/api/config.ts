@@ -8,6 +8,12 @@ export const API_CONFIG = {
 } as const;
 
 export const API_ENDPOINTS = {
+  collectorStatus: (userId: string) =>
+    `/api/v1/users/${userId}/collectors/polar-v4`,
+  collectorPair: (userId: string) =>
+    `/api/v1/users/${userId}/collectors/polar-v4/pair`,
+  collectorReplay: (userId: string, batchId: string) =>
+    `/api/v1/users/${userId}/collectors/batches/${batchId}/replay`,
   // Auth endpoints
   login: '/api/v1/auth/login',
   logout: '/api/v1/auth/logout',
