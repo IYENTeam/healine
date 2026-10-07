@@ -37,8 +37,8 @@ All fields below are required. Additional fields are rejected.
 
 | Field | Type | Meaning |
 | --- | --- | --- |
-| `kind` | string | `heart_rate`, `activity`, `sleep`, or `recovery` |
-| `date` | ISO date | Requested day, interpreted in Asia/Seoul |
+| `kind` | string | `heart_rate`, `activity`, `sleep`, `recovery`, or `workout` |
+| `date` | ISO date | Requested source day; daily observations use Asia/Seoul, training sessions retain the provider's local time and offset |
 | `fetched_at` | Offset-aware ISO datetime | Retrieval time, no more than five minutes in the future |
 | `http_status` | Integer, 100–599 | Original Polar status, including errors |
 | `payload` | JSON object | Resource response, at most 10 MiB; no credentials or non-finite numbers |
@@ -78,13 +78,42 @@ this does not mean zero steps.
 
 `GET /collectors/observations?from=2026-09-17&to=2026-09-18` takes required ISO dates,
 with inclusive start, exclusive end, and a 1–15 day range. It returns arrays named
-`heartRateSamples`, `metSamples`, `stepSamples`, `nightlyRecharges`, and `sleeps`,
-plus `sleepAccess`, `diagnostics`, and `source: "healine-platform"`.
+`heartRateSamples`, `metSamples`, `stepSamples`, `nightlyRecharges`, `sleeps`, and
+`workouts`, plus `sleepAccess`, `workoutAccess`, `diagnostics`, and
+`source: "healine-platform"`.
 
 Samples use epoch milliseconds in `timestampMs`; activity vectors also include
 `intervalMs`. Sleep uses `startMs`, `endMs`, elapsed `durationMinutes`, and optional
 Polar `score`. Missing data gives empty arrays. Later empty or failed fetches retain
 previously successful observations alongside the latest diagnostics.
+
+### Workout sessions
+
+`workout` accepts the v4 `/training-sessions/list` response with `trainingSessions`.
+The collector may add `healineSportCatalog`, a map from source sport ID to public
+`name`, `label`, and `parentName` from `/sports/list`; original session fields stay
+intact. Detailed requests use one source day per request, with an exclusive end.
+The existing collector key and user isolation apply to workout batches too.
+
+Each normalized workout includes stable `id`, Seoul display `date`, `startMs`,
+`endMs`, source `zoneOffset`, recorded `durationSeconds`, `elapsedSeconds`,
+`distanceMeters`, `energyKcal`, average/minimum/maximum heart rate in bpm, source
+training-load values, and exercise summaries. Duration and elapsed time remain
+distinct so pauses are not counted as active exercise time. Missing metrics are
+`null`, never invented zeroes. Unknown sport IDs are retained.
+
+Exercise summaries retain statistics, zone bounds and seconds, running index,
+ascent/descent, and counts of detailed samples, RR intervals, laps and strength
+rounds. Full returned details remain in the original batch. No GPS route feature
+is requested. Sessions also upsert `EventRecord` and `WorkoutDetails` by source
+ID, so the existing workout API/UI can read them; multisport legs stay inside
+one workout. Workout observations are not added to the daily step/calorie totals.
+
+`workoutAccess` is `unknown` before a workout batch, `granted` after a processed
+or legitimately empty response, `needs_connection` after a 403, or `error` after
+other failures. A 403 diagnostic is `workout_access_denied`; the HTTP code alone
+does not identify whether consent or another provider restriction caused it.
+Previously collected workouts remain available alongside the failure diagnostic.
 
 Administrator status contains configured `public_url` and `setup_url`, nullable
 `connection_id`, `paired_at`, `last_received_at`, and `batches`. Receipt time does

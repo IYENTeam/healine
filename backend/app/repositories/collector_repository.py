@@ -5,7 +5,16 @@ from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
-from app.models import CollectorBatch, CollectorConnection, DataSource, EventRecord, HealthScore, SleepDetails, User
+from app.models import (
+    CollectorBatch,
+    CollectorConnection,
+    DataSource,
+    EventRecord,
+    HealthScore,
+    SleepDetails,
+    User,
+    WorkoutDetails,
+)
 from app.repositories.data_source_repository import DataSourceRepository
 from app.schemas.enums import ProviderName
 
@@ -105,6 +114,29 @@ class CollectorRepository:
             existing.data_source_id = score.data_source_id
         else:
             db.add(score)
+
+    def save_workout(self, db: Session, record: EventRecord, detail: WorkoutDetails) -> EventRecord:
+        existing = db.scalar(
+            select(EventRecord).where(
+                EventRecord.data_source_id == record.data_source_id, EventRecord.external_id == record.external_id
+            )
+        )
+        if not existing:
+            db.add(record)
+            db.flush()
+            db.add(detail)
+            return record
+        for key in ("type", "start_datetime", "end_datetime", "duration_seconds", "zone_offset"):
+            setattr(existing, key, getattr(record, key))
+        existing_detail = db.get(WorkoutDetails, existing.id)
+        if existing_detail:
+            for column in WorkoutDetails.__table__.columns:
+                if column.name not in ("record_id", "created_at"):
+                    setattr(existing_detail, column.name, getattr(detail, column.name))
+        else:
+            detail.record_id = existing.id
+            db.add(detail)
+        return existing
 
     def batch(self, db: Session, batch_id: UUID, *, refresh: bool = False) -> CollectorBatch | None:
         return db.get(CollectorBatch, batch_id, populate_existing=refresh)

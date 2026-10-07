@@ -11,6 +11,7 @@ const names: Record<string, string> = {
   activity: '활동·걸음',
   sleep: '수면',
   recovery: '회복',
+  workout: '운동',
 };
 const reasons: Record<string, string> = {
   ok: '저장 완료',
@@ -20,6 +21,7 @@ const reasons: Record<string, string> = {
   invalid_samples: '샘플의 값·시간 형식 확인 필요',
   unexpected_schema: '응답 구조 확인 필요',
   http_error: 'Polar 조회 실패',
+  workout_access_denied: '운동 조회가 거부됨 · Polar 운동 권한 확인 필요',
   processing_error: '재처리 대기',
 };
 

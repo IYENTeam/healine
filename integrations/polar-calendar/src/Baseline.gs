@@ -35,7 +35,7 @@ function buildBaseline_(data, from, to) {
     days[date].push([seoulHourPure_(row.startMs) * 60 + new Date(row.startMs).getUTCMinutes(),
       row.medianHeartRate, row.averageMet, row.steps, row.activeMinutes, row.recentAverageMet, row.recentActiveMinutes]);
   });
-  return { version: HEALINE.modelVersion, createdAt: new Date().toISOString(), from: from, to: to, days: days,
+  return { version: HEALINE.modelVersion, workoutContextVersion: 1, createdAt: new Date().toISOString(), from: from, to: to, days: days,
     nights: (data.nightlyRecharges || []).filter(function (n) { return n.sleepResultDate >= from && n.sleepResultDate < to; })
       .map(function (n) { return { sleepResultDate: n.sleepResultDate,
         meanNightlyRecoveryRmssd: n.meanNightlyRecoveryRmssd, meanNightlyRecoveryRri: n.meanNightlyRecoveryRri }; }) };

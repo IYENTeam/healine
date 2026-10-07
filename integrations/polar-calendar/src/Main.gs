@@ -43,7 +43,7 @@ function runHealine() {
       return deferred;
     }
     var baseline = getBaseline_();
-    if ((!baseline || baseline.version !== HEALINE.modelVersion || baseline.to < today ||
+    if ((!baseline || baseline.version !== HEALINE.modelVersion || baseline.workoutContextVersion !== 1 || baseline.to < today ||
         properties.getProperty(HEALINE.propertyKeys.baselineDirty) === '1') &&
         properties.getProperty(HEALINE.propertyKeys.baselineAttemptDate) !== today) {
       try { baseline = rebuildBaselineUnlocked_(); }
@@ -67,6 +67,7 @@ function runHealine() {
       processedWindowCount: windows.length, hourlyRecordCount: result.hourlyRecordCount,
       summaryDates: dates, latestHeartRateAt: summaries[summaries.length - 1].lastHeartRateAt,
       sleepAccess: data.sleepAccess, legacyEventsRemoved: 0,
+      workoutAccess: data.workoutAccess || getWorkoutAccess_(), workoutRecordCount: result.workoutRecordCount,
       source: data.source || 'apps-script', syncWarning: data.syncWarning || null,
       baselineDays: baseline && baseline.version === HEALINE.modelVersion ? Object.keys(baseline.days).length : 0
     };
@@ -113,6 +114,8 @@ function getHealineStatus() {
     baselineVersion: baseline && baseline.version,
     baselineDays: baseline && baseline.days ? Object.keys(baseline.days).length : 0,
     sleepAccess: properties.getProperty(HEALINE.propertyKeys.sleepAccess),
+    workoutAccess: getWorkoutAccess_(),
+    workoutBackfillDate: properties.getProperty('HEALINE_WORKOUT_BACKFILL_DATE'),
     lastError: lastError,
     backfill: getHealineBackfill_(),
     reconnectCatchupPending: properties.getProperty(HEALINE.propertyKeys.calendarCatchupPending) === '1',
@@ -135,10 +138,10 @@ function getHealineCalendarAudit() {
 }
 
 function auditHealineEvents_(events, from, to) {
-  var rows = {}, keys = {}, totals = { hours: 0, days: 0, sleeps: 0, currentModel: 0,
+  var rows = {}, keys = {}, totals = { hours: 0, days: 0, sleeps: 0, workouts: 0, currentModel: 0,
     duplicates: 0, invalidData: 0, minuteRows: 0, comparedQuarters: 0 };
   isoDatesBetween_(from, to).forEach(function (date) {
-    rows[date] = { date: date, hours: 0, days: 0, sleeps: 0, currentModel: 0,
+    rows[date] = { date: date, hours: 0, days: 0, sleeps: 0, workouts: 0, currentModel: 0,
       duplicates: 0, invalidData: 0, minuteRows: 0, comparedQuarters: 0,
       invalidKeys: [], maxDescriptionLength: 0 };
   });
@@ -146,14 +149,15 @@ function auditHealineEvents_(events, from, to) {
     var kind = 'hour', key = event.getTag('healineHour');
     if (!key) { kind = 'day'; key = event.getTag('healineDay'); }
     if (!key) { kind = 'sleep'; key = event.getTag('healineSleep'); }
+    if (!key) { kind = 'workout'; key = event.getTag('healineWorkout'); }
     if (!key) return;
-    var date = key.slice(0, 10), row = rows[date];
+    var date = kind === 'workout' ? formatIsoDate_(event.getStartTime()) : key.slice(0, 10), row = rows[date];
     if (!row) return;
     var description = event.getDescription();
     row.maxDescriptionLength = Math.max(row.maxDescriptionLength, description.length);
     // Notes follow the generated marker; they must not be parsed as generated data.
     description = description.split('\n\n[내 메모]\n')[0];
-    var counter = {hour: 'hours', day: 'days', sleep: 'sleeps'}[kind];
+    var counter = {hour: 'hours', day: 'days', sleep: 'sleeps', workout: 'workouts'}[kind];
     row[counter] += 1;
     if (keys[kind + ':' + key]) row.duplicates += 1;
     keys[kind + ':' + key] = true;
@@ -162,7 +166,7 @@ function auditHealineEvents_(events, from, to) {
     try {
       var data = block && JSON.parse(block[1]);
       if (!data || data.schema !== 'healine.calendar.v1' || data.kind !== kind) throw new Error('invalid_data');
-      if (data.modelVersion === HEALINE.modelVersion) row.currentModel += 1;
+      if (kind !== 'workout' && data.modelVersion === HEALINE.modelVersion) row.currentModel += 1;
       if (kind === 'hour') {
         row.minuteRows += (data.minutes || []).length;
         row.comparedQuarters += (data.quarters || []).filter(function (q) { return Boolean(q.comparison); }).length;
@@ -182,6 +186,10 @@ function writeHealineRange_(range, data, baseline) {
   var windows = evaluateHealineRange_(data, range.start.getTime(), range.end.getTime(), baseline);
   var calendar = getOrCreateHealineCalendar_();
   var events = calendar.getEvents(range.start, range.end);
+  var workouts = (data.workouts || []).filter(function (workout) {
+    return workout.startMs < range.end.getTime() && workout.endMs > range.start.getTime();
+  });
+  workouts.forEach(function (workout) { upsertHealineWorkout_(calendar, events, workout); });
   var hours = buildHourlyObservations_(windows), count = 0;
   hours.forEach(function (hour) {
     if (!hasHourlyObservations_(hour) && !findHealineEvent_(events, 'healineHour', hourKey_(hour.startMs))) return;
@@ -192,14 +200,14 @@ function writeHealineRange_(range, data, baseline) {
     addIsoDays_(formatIsoDate_(new Date(range.end.getTime() - 1)), 1));
   var summaries = dates.map(function (date) {
     var summary = buildDailySummary_(date, windows, data);
-    if (summary.nightly || summary.sleep || summary.activityMinutes || summary.observedWindows ||
+    if (summary.nightly || summary.sleep || summary.workouts.length || summary.activityMinutes || summary.observedWindows ||
         summary.diagnostics.length || summary.syncWarning || findHealineEvent_(events, 'healineDay', date)) {
       upsertHealineDay_(calendar, events, summary);
     }
     if (summary.sleep) upsertHealineSleep_(calendar, events, summary.sleep);
     return summary;
   });
-  return { windows: windows, dates: dates, summaries: summaries, hourlyRecordCount: count };
+  return { windows: windows, dates: dates, summaries: summaries, hourlyRecordCount: count, workoutRecordCount: workouts.length };
 }
 
 function evaluateHealineRange_(data, startMs, endMs, baseline) {
@@ -219,7 +227,7 @@ function evaluateHealineRange_(data, startMs, endMs, baseline) {
     }, []);
     output.push(evaluateHealineWindow_({ windowStartMs: start, windowEndMs: start + 900000,
       heartRateSamples: row.heartRateSamples || [], metSamples: mets, stepSamples: row.stepSamples || [],
-      sleeps: data.sleeps, baseline: baseline }));
+      sleeps: data.sleeps, workouts: data.workouts, baseline: baseline }));
   }
   return output;
 }
@@ -364,6 +372,44 @@ function reconcileHistoricalDay_(cachedOnly, attemptedDates) {
 // Operators can replay retained records while Polar authorization is unavailable.
 function replayStoredHealineCalendar() { return continueHealineBackfill_(true); }
 function continueHealineBackfill() { return continueHealineBackfill_(false); }
+
+// Prioritize workout history without rewriting every existing hourly event.
+// The regular repair queue subsequently refreshes day summaries/comparisons.
+function backfillHealineWorkouts() {
+  var lock = LockService.getUserLock();
+  if (!lock.tryLock(1000)) return { busy: true };
+  try {
+    if (!isHealinePlatformConnected_()) throw new Error('먼저 기존 Healine 서버를 연결하세요.');
+    if (getWorkoutAccess_() === 'needs_connection') {
+      var denied = { workoutAccess: 'needs_connection', message: 'Polar 연결 화면에서 운동 조회 권한을 허용하세요.' };
+      console.log(JSON.stringify(denied)); return denied;
+    }
+    var props = PropertiesService.getUserProperties(), today = formatIsoDate_(new Date());
+    var date = props.getProperty('HEALINE_WORKOUT_BACKFILL_DATE') || addIsoDays_(today, -30);
+    props.setProperty('HEALINE_WORKOUT_BACKFILL_DATE', date);
+    var deadline = Date.now() + 240000, processed = 0, workouts = 0;
+    while (date <= today && Date.now() < deadline) {
+      var to = addIsoDays_(date, 1), receipt = syncPlatformRange_(date, to, ['workout']);
+      if (getWorkoutAccess_() === 'needs_connection' || !receipt.complete) break;
+      if ((getHealineBackfill_().calendarRetryAt || 0) > Date.now()) break;
+      var data = readPlatformObservations_(date, to);
+      var calendar = getOrCreateHealineCalendar_();
+      var events = calendar.getEvents(new Date(localDayStartMs_(date)), new Date(localDayStartMs_(to)));
+      (data.workouts || []).forEach(function (workout) { upsertHealineWorkout_(calendar, events, workout); workouts++; });
+      props.setProperty('HEALINE_WORKOUT_BACKFILL_DATE', to);
+      date = to; processed++;
+    }
+    var result = { processedDates: processed, workoutRecords: workouts, nextDate: date, throughDate: today,
+      complete: date > today, workoutAccess: getWorkoutAccess_() };
+    console.log(JSON.stringify(result)); return result;
+  } catch (error) {
+    if (isCalendarRateLimit_(error.message)) {
+      var state = getHealineBackfill_(); state.calendarRetryAt = Date.now() + 900000;
+      PropertiesService.getUserProperties().setProperty(HEALINE.propertyKeys.calendarBackfill, JSON.stringify(state));
+    }
+    throw error;
+  } finally { lock.releaseLock(); }
+}
 function continueHealineBackfill_(cachedOnly) {
   var lock = LockService.getUserLock();
   if (!lock.tryLock(1000)) return { busy: true };

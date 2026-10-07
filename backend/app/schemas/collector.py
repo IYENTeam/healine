@@ -5,7 +5,7 @@ from uuid import UUID
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
-CollectorKind = Literal["heart_rate", "activity", "sleep", "recovery"]
+CollectorKind = Literal["heart_rate", "activity", "sleep", "recovery", "workout"]
 
 
 class CollectorDelivery(BaseModel):

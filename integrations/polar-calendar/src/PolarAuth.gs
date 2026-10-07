@@ -96,8 +96,8 @@ function renderPolarConnectPage_() {
       '<p>아래 버튼으로 Polar Flow 데이터 접근을 허용하세요.</p>' +
       '<p><a style="display:inline-block;padding:12px 18px;background:#d71920;color:white;' +
       'text-decoration:none;border-radius:6px" target="_top" href="' + escapeHtml_(url) + '">Polar 연결</a></p>' +
-      '<p>요청 권한: 연속 심박수, 활동량, Nightly Recharge, 수면 읽기</p>' +
-      '<p>기존 연결은 유지됩니다. 수면 시간도 표시하려면 위 버튼으로 다시 연결하세요.</p></div>'
+      '<p>요청 권한: 연속 심박수, 활동량, Nightly Recharge, 수면, 운동 기록과 종목 읽기</p>' +
+      '<p>운동 기록을 추가하려면 위 버튼으로 운동 조회 권한을 허용하세요. 기존 수집과 캘린더 기록은 유지됩니다.</p></div>'
   );
 }
 
@@ -260,6 +260,7 @@ function savePolarToken_(token, grantType) {
   var lifecycle = getPolarTokenLifecycle_();
   var wasDisconnected = isPolarReconnectRequired_();
   var previousRefresh = properties.getProperty(HEALINE.propertyKeys.refreshToken);
+  var previousScopes = properties.getProperty(HEALINE.propertyKeys.grantedScopes) || '';
   var lastError = JSON.parse(properties.getProperty(HEALINE.propertyKeys.lastError) || 'null');
   var values = {};
   values[HEALINE.propertyKeys.accessToken] = token.access_token;
@@ -268,6 +269,10 @@ function savePolarToken_(token, grantType) {
   if (token.refresh_token) values[HEALINE.propertyKeys.refreshToken] = token.refresh_token;
   if (grantType === 'authorization_code') {
     properties.deleteProperty(HEALINE.propertyKeys.sleepAccess);
+    properties.deleteProperty(HEALINE.propertyKeys.workoutAccess);
+    if (previousScopes.split(/\s+/).indexOf('training_sessions:read') < 0) {
+      properties.deleteProperty('HEALINE_WORKOUT_BACKFILL_DATE');
+    }
     properties.deleteProperty(HEALINE.propertyKeys.grantedScopes);
   }
   if (token.scope) {
@@ -289,7 +294,9 @@ function savePolarToken_(token, grantType) {
   values[HEALINE.propertyKeys.tokenLifecycle] = JSON.stringify(lifecycle);
   properties.setProperties(values);
   properties.deleteProperty(HEALINE.propertyKeys.lastError);
-  if ((wasDisconnected || lastError && lastError.code === 'polar_reconnect_required') && isHealinePlatformConnected_()) {
+  if ((wasDisconnected || lastError && lastError.code === 'polar_reconnect_required' ||
+      grantType === 'authorization_code' && previousScopes.split(/\s+/).indexOf('training_sessions:read') < 0) &&
+      isHealinePlatformConnected_()) {
     // OAuth can finish during a locked replay. Merge the request on the next
     // live run, so a cached replay checkpoint cannot overwrite or acknowledge it.
     properties.setProperty(HEALINE.propertyKeys.calendarCatchupPending, '1');
@@ -305,6 +312,7 @@ function resetPolarAuthorization() {
       HEALINE.propertyKeys.expiresAt,
       HEALINE.propertyKeys.grantedScopes,
       HEALINE.propertyKeys.sleepAccess,
+      HEALINE.propertyKeys.workoutAccess,
       HEALINE.propertyKeys.oauthState,
       HEALINE.propertyKeys.oauthStateExpiresAt,
       HEALINE.propertyKeys.tokenLifecycle

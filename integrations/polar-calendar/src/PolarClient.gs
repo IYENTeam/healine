@@ -36,6 +36,7 @@ function fetchPolarWindowData_(window) {
   if (isHealinePlatformConnected_()) {
     var receipt = syncPlatformRange_(from, to);
     var stored = readPlatformObservations_(from, to);
+    if (getWorkoutAccess_() === 'needs_connection') stored.workoutAccess = 'needs_connection';
     if (receipt && !receipt.complete) stored.syncWarning = '일부 Polar 조회가 실패했습니다. 종류별 수집 상태와 측정 날짜를 확인하세요.';
     return stored;
   }
@@ -239,15 +240,19 @@ function platformRequest_(path, payload) {
   return JSON.parse(response.getContentText());
 }
 
-function syncPlatformRange_(from, to) {
+function syncPlatformRange_(from, to, kinds) {
   var complete = true;
   isoDatesBetween_(from, to).forEach(function (date) {
     [
       { kind: 'heart_rate', path: '/continuous-samples', features: 'heart-rate-samples' },
       { kind: 'activity', path: '/activity/list', features: 'samples' },
       { kind: 'sleep', path: '/sleeps', features: ['sleep-result', 'sleep-score'] },
-      { kind: 'recovery', path: '/nightly-recharge-results' }
+      { kind: 'recovery', path: '/nightly-recharge-results' },
+      { kind: 'workout', path: '/training-sessions/list',
+        features: ['samples', 'statistics', 'zones', 'training-load-report', 'laps', 'pause-times', 'strength-training-results'] }
     ].forEach(function (request) {
+      if (kinds && kinds.indexOf(request.kind) < 0) return;
+      if (request.kind === 'workout' && getWorkoutAccess_() === 'needs_connection') return;
       var query = { from: date, to: addIsoDays_(date, 1) };
       if (request.features) query.features = request.features;
       var url = HEALINE.apiBaseUrl + request.path + '?' + encodeQuery_(query);
@@ -257,18 +262,69 @@ function syncPlatformRange_(from, to) {
       var body;
       try { body = JSON.parse(response.getContentText() || '{}'); }
       catch (ignored) { body = { responseFormat: 'non-json' }; }
+      var httpStatus = response.getResponseCode();
+      if (request.kind === 'workout') {
+        PropertiesService.getUserProperties().setProperty(HEALINE.propertyKeys.workoutAccess,
+          httpStatus === 403 ? 'needs_connection' : httpStatus === 200 ? 'granted' : 'error');
+        if (httpStatus === 200) body = enrichWorkoutSports_(body);
+      }
       // Resource responses only. OAuth credentials never leave Apps Script.
       var batch = platformRequest_('/batches', {
         kind: request.kind, date: date, fetched_at: new Date().toISOString(),
-        http_status: response.getResponseCode(), payload: body
+        http_status: httpStatus, payload: body
       });
       if (batch.status === 'processing_error' || batch.status === 'pending') {
         throw new Error('Healine에 원본을 저장했지만 처리 중입니다. 다음 실행에서 다시 확인합니다.');
       }
-      if (['processed', 'empty'].indexOf(batch.status) < 0 && response.getResponseCode() !== 404) complete = false;
+      // Missing optional workout consent must not stop the already-authorized resources.
+      if (request.kind === 'workout' && httpStatus === 403) return;
+      if (['processed', 'empty'].indexOf(batch.status) < 0 &&
+          (request.kind === 'workout' || httpStatus !== 404)) complete = false;
     });
   });
   return { complete: complete };
+}
+
+function getWorkoutAccess_() {
+  var props = PropertiesService.getUserProperties();
+  var scopes = props.getProperty(HEALINE.propertyKeys.grantedScopes);
+  if (scopes && scopes.split(/\s+/).indexOf('training_sessions:read') < 0) return 'needs_connection';
+  return props.getProperty(HEALINE.propertyKeys.workoutAccess) || 'unknown';
+}
+
+function enrichWorkoutSports_(body) {
+  var root = body.data || body;
+  if (!Array.isArray(root.trainingSessions) || !root.trainingSessions.length) return body;
+  var scopes = PropertiesService.getUserProperties().getProperty(HEALINE.propertyKeys.grantedScopes);
+  if (scopes && scopes.split(/\s+/).indexOf('sports:read') < 0) return body;
+  try {
+    var cache = CacheService.getScriptCache(), cached = cache.get('healine_sports_v1');
+    var catalog = cached ? JSON.parse(cached) : null;
+    if (!catalog) {
+      var response = polarGet_('/sports/list', {}, { allowForbidden: true });
+      if (response.healineForbidden) return body;
+      var sports = (response.data || response).sports;
+      if (!Array.isArray(sports)) throw new Error('운동 종목 응답 형식 확인 필요');
+      var names = {}; sports.forEach(function (s) { names[(s.id || {}).id] = s.name; });
+      catalog = {};
+      sports.forEach(function (s) {
+        var labels = s.localizedNames || {};
+        catalog[(s.id || {}).id] = { name: s.name, parentName: names[(s.parentSport || {}).id],
+          label: (labels.ko || labels['ko-KR'] || labels.en || {}).longName || s.name };
+      });
+      cache.put('healine_sports_v1', JSON.stringify(catalog), 21600);
+    }
+    var selected = {};
+    root.trainingSessions.forEach(function (session) {
+      [session].concat(session.exercises || []).forEach(function (exercise) {
+        var id = (exercise.sport || {}).id;
+        if (id && catalog[id]) selected[id] = catalog[id];
+      });
+    });
+    // Supplemental public catalog; the original training-session fields are retained.
+    root.healineSportCatalog = selected;
+  } catch (error) { console.warn('운동 종목 이름 조회 보류. 원본 종목 ID는 보존합니다.'); }
+  return body;
 }
 
 function readPlatformObservations_(from, to) {

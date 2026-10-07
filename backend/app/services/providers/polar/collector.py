@@ -5,12 +5,14 @@ Retain provider responses upstream; never turn missing samples into zero values.
 """
 
 import math
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from app.constants.workout_types.polar import get_unified_workout_type
+
 SEOUL = ZoneInfo("Asia/Seoul")
-OBSERVATION_KEYS = ("heartRateSamples", "metSamples", "stepSamples", "nightlyRecharges", "sleeps")
+OBSERVATION_KEYS = ("heartRateSamples", "metSamples", "stepSamples", "nightlyRecharges", "sleeps", "workouts")
 SLEEP_SCORE_COMPONENTS = (
     "continuityScore",
     "efficiencyScore",
@@ -112,6 +114,7 @@ def normalize_polar_response(kind: str, day: date, payload: dict[str, Any]) -> t
         "activity": "activities",
         "sleep": "nightSleeps",
         "recovery": "nightlyRechargeResults",
+        "workout": "trainingSessions",
     }[kind]
     day_key = {"heart_rate": "heartRateSamplesPerDay", "activity": "activityDays"}.get(kind)
     # The live REST gateway also returns daily collections without the Swagger wrapper.
@@ -197,6 +200,8 @@ def normalize_polar_response(kind: str, day: date, payload: dict[str, Any]) -> t
                     },
                 }
             )
+    elif kind == "workout":
+        output["workouts"] = _workouts(day, root, diagnostics)
     else:
         nights = root.get("nightlyRechargeResults")
         if isinstance(nights, dict):
@@ -240,3 +245,171 @@ def normalize_polar_response(kind: str, day: date, payload: dict[str, Any]) -> t
     elif diagnostics["rejected_samples"] or diagnostics["invalid_vectors"]:
         diagnostics["code"] = "partial"
     return output, diagnostics
+
+
+def _workout_time(value: Any, offset: Any) -> datetime | None:
+    if not isinstance(value, str) or "T" not in value:
+        return None
+    try:
+        stamp = datetime.fromisoformat(value)
+        minutes = _number(offset, -720, 840)
+        if offset is not None and (minutes is None or not minutes.is_integer()):
+            return None
+        if stamp.tzinfo:
+            return stamp.astimezone(timezone(timedelta(minutes=minutes))) if minutes is not None else stamp
+        if minutes is not None and minutes.is_integer():
+            return stamp.replace(tzinfo=timezone(timedelta(minutes=minutes)))
+    except ValueError:
+        pass
+    return None
+
+
+def _workout_sport(reference: Any, catalog: dict[str, Any]) -> dict[str, Any]:
+    sport_id = str(_object(reference).get("id", ""))
+    entry = _object(catalog.get(sport_id))
+    name = str(entry.get("name") or "OTHER").upper()
+    parent = str(entry.get("parentName") or name).upper()
+    return {
+        "id": sport_id,
+        "name": name,
+        "label": str(entry.get("label") or name)[:100],
+        "type": get_unified_workout_type(parent, name).value,
+    }
+
+
+def _workout_load(value: Any) -> dict[str, Any]:
+    raw = _object(value)
+    result: dict[str, Any] = {}
+    for key in ("cardioLoad", "muscleLoad", "perceivedLoad"):
+        parsed = _number(raw.get(key), 0, 65535)
+        if parsed is not None:
+            result[key] = parsed
+    for key in ("cardioLoadInterpretation", "muscleLoadInterpretation", "perceivedLoadInterpretation", "sessionRpe"):
+        if isinstance(raw.get(key), str):
+            result[key] = raw[key][:80]
+    return result
+
+
+def _workout_exercise(raw: dict[str, Any], catalog: dict[str, Any]) -> dict[str, Any]:
+    statistics = []
+    for entry in _list(_object(raw.get("statistics")).get("statistics")):
+        entry = _object(entry)
+        statistics.append(
+            {
+                "type": str(entry.get("type") or "UNKNOWN")[:80],
+                **{key: _number(entry.get(key), -10000, 10000000) for key in ("min", "avg", "max")},
+            }
+        )
+    zones = []
+    for group in _list(raw.get("zones")):
+        group = _object(group)
+        for zone in _list(group.get("zones")):
+            zone = _object(zone)
+            low, high = _number(zone.get("lowerLimit"), 0, 100000), _number(zone.get("higherLimit"), 0, 100000)
+            duration = _number(zone.get("inZone"), 0, 360000000)
+            if low is not None and high is not None and low <= high and duration is not None:
+                zones.append(
+                    {
+                        "type": str(group.get("type") or "UNKNOWN")[:80],
+                        "lower": low,
+                        "upper": high,
+                        "durationSeconds": duration / 1000,
+                    }
+                )
+    samples = _object(raw.get("samples"))
+    vectors = _list(samples.get("samples"))
+    laps = _object(raw.get("laps"))
+    return {
+        "id": str(_object(raw.get("identifier")).get("id", "")),
+        "sport": _workout_sport(raw.get("sport"), catalog),
+        "durationSeconds": _millis_seconds(raw.get("durationMillis")),
+        "distanceMeters": _number(raw.get("distanceMeters"), 0, 9999000),
+        "energyKcal": _number(raw.get("calories"), 0, 65535),
+        "ascentMeters": _number(raw.get("ascentMeters"), 0, 99000),
+        "descentMeters": _number(raw.get("descentMeters"), 0, 99000),
+        "runningIndex": _number(raw.get("runningIndex"), 25, 100),
+        "statistics": statistics,
+        "zones": zones,
+        "trainingLoad": _workout_load(raw.get("trainingLoadReport")),
+        "detailCounts": {
+            "sampleValues": sum(len(_list(_object(vector).get("values"))) for vector in vectors),
+            "rrSamples": len(_list(samples.get("rrSamples"))),
+            "manualLaps": len(_list(laps.get("laps"))),
+            "automaticLaps": len(_list(laps.get("autoLaps"))),
+            "strengthRounds": len(_list(_object(raw.get("strengthTrainingResults")).get("completedRounds"))),
+        },
+    }
+
+
+def _millis_seconds(value: Any) -> float | None:
+    parsed = _number(value, 0, 360000000)
+    return parsed / 1000 if parsed is not None else None
+
+
+def _workouts(day: date, root: dict[str, Any], diagnostics: dict[str, Any]) -> list[dict[str, Any]]:
+    catalog = _object(root.get("healineSportCatalog"))
+    sessions: dict[str, dict[str, Any]] = {}
+    for raw in _list(root.get("trainingSessions")):
+        raw = _object(raw)
+        diagnostics["raw_samples"] += 1
+        identifier = _object(raw.get("identifier")).get("id")
+        offset = raw.get("timezoneOffsetMinutes")
+        start = _workout_time(raw.get("startTime"), offset)
+        end = _workout_time(raw.get("stopTime"), offset)
+        duration = _millis_seconds(raw.get("durationMillis"))
+        if (
+            not isinstance(identifier, str)
+            or not 1 <= len(identifier) <= 64
+            or start is None
+            or end is None
+            or not 0 < (end - start).total_seconds() <= 7 * 86400
+            or duration is None
+            or duration <= 0
+            or duration > (end - start).total_seconds() + 1
+        ):
+            diagnostics["rejected_samples"] += 1
+            continue
+        # Date filtering belongs to the API's local date, before Seoul display conversion.
+        if start.date() != day:
+            continue
+        diagnostics["days"] = 1
+        exercises = [_workout_exercise(_object(exercise), catalog) for exercise in _list(raw.get("exercises"))]
+        sport = _workout_sport(raw.get("sport"), catalog)
+        if not sport["id"] and len(exercises) == 1:
+            sport = exercises[0]["sport"]
+        utc_offset = start.utcoffset()
+        assert utc_offset is not None  # _workout_time accepts only resolved time zones.
+        minutes = int(utc_offset.total_seconds() / 60)
+        heart_min = [
+            s["min"]
+            for e in exercises
+            for s in e["statistics"]
+            if s["type"] == "STATISTICS_TYPE_HEART_RATE" and _number(s["min"], 30, 240) is not None
+        ]
+        entry = {
+            "id": identifier,
+            "date": start.astimezone(SEOUL).date().isoformat(),
+            "startMs": int(start.timestamp() * 1000),
+            "endMs": int(end.timestamp() * 1000),
+            "durationSeconds": duration,
+            "elapsedSeconds": (end - start).total_seconds(),
+            "zoneOffset": f"{'+' if minutes >= 0 else '-'}{abs(minutes) // 60:02}:{abs(minutes) % 60:02}",
+            "modifiedAt": raw.get("modified"),
+            "name": str(raw.get("name") or sport["label"])[:100],
+            "sport": sport,
+            "distanceMeters": _number(raw.get("distanceMeters"), 0, 9999000),
+            "energyKcal": _number(raw.get("calories"), 0, 65535),
+            "heartRateAvgBpm": _number(raw.get("hrAvg"), 30, 240),
+            "heartRateMaxBpm": _number(raw.get("hrMax"), 30, 240),
+            "heartRateMinBpm": min(heart_min) if heart_min else None,
+            "trainingLoad": _workout_load(raw.get("trainingLoadReport")),
+            "polarTrainingLoad": _number(raw.get("trainingLoad"), 0, 65535),
+            "trainingBenefit": raw.get("trainingBenefit"),
+            "recoveryTimeSeconds": _millis_seconds(raw.get("recoveryTimeMillis")),
+            "exercises": exercises,
+            "source": "polar_accesslink_v4",
+        }
+        previous = sessions.get(identifier)
+        if previous is None or str(entry["modifiedAt"] or "") >= str(previous["modifiedAt"] or ""):
+            sessions[identifier] = entry
+    return sorted(sessions.values(), key=lambda item: item["startMs"])

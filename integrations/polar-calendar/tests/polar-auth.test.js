@@ -19,6 +19,18 @@ function environment() {
 }
 const response=(status,body)=>({getResponseCode:()=>status,getContentText:()=>JSON.stringify(body)});
 
+test('adding workout consent clears its block and schedules history without requiring an expired token',()=>{
+  const {context:c,properties}=environment();
+  properties.setProperties({POLAR_GRANTED_SCOPES:'sleep:read activity:read',HEALINE_WORKOUT_ACCESS:'needs_connection',
+    HEALINE_WORKOUT_BACKFILL_DATE:'2026-10-01',HEALINE_PLATFORM_URL:'https://healine.example.com',HEALINE_PLATFORM_COLLECTOR_KEY:'test'});
+  c.savePolarToken_({access_token:'new',refresh_token:'new-refresh',expires_in:3600,
+    scope:'sleep:read activity:read training_sessions:read sports:read'},'authorization_code');
+  assert.equal(c.getWorkoutAccess_(),'unknown');
+  assert.equal(properties.getProperty('HEALINE_WORKOUT_BACKFILL_DATE'),null);
+  assert.equal(properties.getProperty('HEALINE_CALENDAR_CATCHUP_PENDING'),'1');
+  assert.equal(c.isPolarReconnectRequired_(),false);
+});
+
 test('refresh rereads credentials after acquiring the lock and reuses a concurrent refresh',()=>{
   const {context:c,properties}=environment();
   let released=false;

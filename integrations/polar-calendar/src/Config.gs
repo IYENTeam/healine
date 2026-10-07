@@ -9,7 +9,9 @@ var HEALINE = Object.freeze({
     'continuous_samples:read',
     'activity:read',
     'nightly_recharge:read',
-    'sleep:read'
+    'sleep:read',
+    'training_sessions:read',
+    'sports:read'
   ],
   calendarName: 'Healine 상태',
   calendarId: 'f5323b2dbd20de99724fec1d9d245452e60c0fc9e458829f542ad4651b492d9b@group.calendar.google.com',
@@ -33,6 +35,7 @@ var HEALINE = Object.freeze({
     baselineDirty: 'HEALINE_BASELINE_DIRTY',
     grantedScopes: 'POLAR_GRANTED_SCOPES',
     sleepAccess: 'HEALINE_SLEEP_ACCESS',
+    workoutAccess: 'HEALINE_WORKOUT_ACCESS',
     accessToken: 'POLAR_ACCESS_TOKEN',
     refreshToken: 'POLAR_REFRESH_TOKEN',
     expiresAt: 'POLAR_EXPIRES_AT',

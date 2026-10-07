@@ -35,8 +35,12 @@ function evaluateHealineWindow_(input) {
   var fullActivity = metMinutes >= HEALINE.minimumMetMinutes;
   var active = (result.averageMet !== null && result.averageMet >= 2) || result.steps >= 100;
   var sleeping = (input.sleeps || []).some(function (s) { return s.startMs < end && s.endMs > start; });
+  var exercising = (input.workouts || []).some(function (w) { return w.startMs < end && w.endMs > start; });
+  var afterExercise = (input.workouts || []).some(function (w) { return w.endMs <= start && w.endMs > historyStart; });
   if (!hr.length) result.status = 'NO_DATA';
   else if (sleeping) result.status = 'SLEEP_RECORDED';
+  else if (exercising) result.status = 'WORKOUT_RECORDED';
+  else if (afterExercise) result.status = 'AFTER_WORKOUT';
   else if (active) result.status = 'ACTIVE';
   else if (!fullHr || !fullActivity || result.stepMinutes < HEALINE.minimumMetMinutes) result.status = 'PARTIAL';
   else if (seoulHourPure_(start) < HEALINE.comparisonStartHour || seoulHourPure_(start) >= HEALINE.comparisonEndHour) {
@@ -198,6 +202,8 @@ function buildDailySummary_(date, windows, data) {
   var sleep = (data.sleeps || []).filter(function (s) { return s.date === date; })[0] || null;
   return {
     date: date, windows: rows, nightly: nightly, sleep: sleep,
+    workouts: (data.workouts || []).filter(function (workout) { return dateKeyPure_(workout.startMs) === date; }),
+    workoutAccess: data.workoutAccess || 'unknown',
     nightComparison: compareNightlyHistory_(date, nightly, data.nightlyHistory || data.nightlyRecharges || []),
     comparisonEligibleWindows: rows.filter(function (r) { return r.comparisonEligible; }).length,
     comparedWindows: rows.filter(function (r) { return r.baseline; }).length,

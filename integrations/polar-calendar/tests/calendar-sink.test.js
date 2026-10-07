@@ -4,6 +4,7 @@ const { load } = require('./helpers');
 class Event {
   constructor(title, start, end, description) { Object.assign(this, {title,start,end,description,tags:{},color:'',mutations:0,deleted:false}); }
   getTag(k) { return this.tags[k] || ''; }
+  getId() { return this.tags.healineWorkout || this.title; }
   setTag(k,v) { this.tags[k]=v;this.mutations++; }
   getTitle() { return this.title; }
   setTitle(v) { this.title=v;this.mutations++; }
@@ -21,6 +22,7 @@ class Event {
 function setup() {
   const saved=[];
   const calendar = {
+    getEventById(id) { return saved.find(e => !e.deleted && e.getId() === id) || null; },
     getEvents(a,b) { return saved.filter(e => !e.deleted && e.start < b && e.end > a); },
     createEvent(t,a,b,o) { const e=new Event(t,a,b,o.description);saved.push(e);return e; },
     createAllDayEvent(t,a,o) { return this.createEvent(t,a,new Date(a.getTime()+86400000),o); }
@@ -28,6 +30,47 @@ function setup() {
   const { context:c, properties } = load({CalendarApp:{EventColor:{GREEN:'10',GRAY:'8',BLUE:'9',ORANGE:'6',MAUVE:'3'},EventTransparency:{TRANSPARENT:'transparent'}}});
   return {c,calendar,saved,properties};
 }
+
+function workoutFixture() {
+  return { id:'session-1',name:'Evening run',sport:{id:'1',name:'RUNNING',label:'달리기',type:'running'},
+    startMs:Date.parse('2026-09-17T23:30:00+09:00'),endMs:Date.parse('2026-09-18T00:35:00+09:00'),
+    durationSeconds:3600,elapsedSeconds:3900,zoneOffset:'+09:00',distanceMeters:10000,energyKcal:600,
+    heartRateAvgBpm:150,heartRateMaxBpm:181,heartRateMinBpm:90,trainingLoad:{cardioLoad:80},
+    exercises:[],source:'polar_accesslink_v4'};
+}
+
+test('workout repeat, midnight crossing and corrected date reuse one event and preserve notes', () => {
+  const {c,calendar,saved}=setup(); const w=workoutFixture();
+  c.upsertHealineWorkout_(calendar,[],w);
+  saved[0].description=saved[0].description.split('\n\n[내 메모]\n')[0]+'\n\n[내 메모]\n언덕 훈련';
+  c.upsertHealineWorkout_(calendar,[],{...w,startMs:w.startMs+86400000,endMs:w.endMs+86400000});
+  assert.equal(saved.length,1);assert.equal(saved[0].start.getTime(),w.startMs+86400000);
+  assert.ok(saved[0].description.endsWith('언덕 훈련'));
+  assert.equal(saved[0].noReminders,true);assert.equal(saved[0].transparency,'transparent');
+  const data=JSON.parse(saved[0].description.split('[HEALINE_DATA_V1]\n')[1].split('\n[/HEALINE_DATA_V1]')[0]);
+  assert.equal(data.durationSeconds,3600);assert.equal(data.elapsedSeconds,3900);
+  const audit=c.auditHealineEvents_(saved,'2026-09-18','2026-09-19');
+  assert.equal(audit.totals.workouts,1);assert.equal(audit.totals.invalidData,0);
+});
+
+test('large workout details preserve complete core JSON and notes with an explicit raw-detail reference', () => {
+  const {c,calendar,saved}=setup();const w=workoutFixture();
+  w.exercises=Array.from({length:100},()=>({sport:w.sport,statistics:Array(30).fill({type:'STATISTICS_TYPE_HEART_RATE',min:90,avg:150,max:181})}));
+  c.upsertHealineWorkout_(calendar,[],w);
+  assert.ok(saved[0].description.length<=8000);
+  const data=JSON.parse(saved[0].description.split('[HEALINE_DATA_V1]\n')[1].split('\n[/HEALINE_DATA_V1]')[0]);
+  assert.equal(data.exerciseCount,100);assert.equal(data.exerciseDetailsOmittedFromCalendar,true);
+  assert.equal(data.distanceMeters,10000);assert.equal(data.id,w.id);
+});
+
+test('workout-only days get a day card and a workout event without inventing daily activity samples', () => {
+  const {c,calendar,saved}=setup();c.getOrCreateHealineCalendar_=()=>calendar;
+  const w=workoutFixture();const result=c.writeHealineRange_({start:new Date('2026-09-17T00:00:00+09:00'),end:new Date('2026-09-18T00:00:00+09:00')},
+    {workouts:[w],workoutAccess:'granted'},null);
+  assert.equal(result.workoutRecordCount,1);assert.equal(result.hourlyRecordCount,0);
+  assert.equal(saved.filter(e=>e.getTag('healineDay')).length,1);
+  assert.equal(result.summaries[0].steps,null);
+});
 test('daily summaries are idempotent, free of reminders, and preserve personal notes', () => {
   const {c,calendar,saved}=setup(); const events=[];
   const day=c.buildDailySummary_('2026-09-17',[],{sleepAccess:'needs_connection'});

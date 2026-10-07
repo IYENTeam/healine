@@ -67,7 +67,8 @@ are retained. Before pairing, standalone collection continues. After pairing, pl
 ## Verify real operation
 
 The collector card must show a recent receipt and dated results for heart rate,
-activity, sleep, and recovery. Inspect each result and sample count: receipt alone
+activity, sleep, and recovery, plus workouts after the owner grants workout access.
+Inspect each result and sample count: receipt alone
 does not prove successful normalization. The daily calendar description should
 include **수집 상태 · Healine에 저장된 기록**.
 
@@ -107,6 +108,39 @@ the previous records intact. Legacy quarter-hour events are retained because
 their generated text cannot be reliably distinguished from user annotations.
 
 ## Missing data, backfill, and replay
+
+### Workout extension
+
+The paired collector also reads Polar's [v4 training sessions](https://www.polar.com/polar-api-v4/) at `/training-sessions/list`, using
+`training_sessions:read` and public sport names through `sports:read`. Existing
+four-scope connections need the owner to add these permissions through the same
+Polar connect page. This is an added data permission, not a refresh-token repair.
+Missing workout permission does not stop heart rate, activity, sleep or recovery.
+Inspect `workoutAccess`; `unknown`, `needs_connection`, `error` and `granted`
+remain distinct. Successful new authorization clears the workout access block
+and schedules the latest 30 days for collection.
+
+Workout raw responses retain samples, statistics, zones, training-load reports,
+laps, pauses and strength results when supplied. Source IDs upsert canonical
+`EventRecord`/`WorkoutDetails` records and `healineWorkout` Calendar events.
+The event ID is retained privately so a changed start date still updates the
+same event. Calendar descriptions carry `kind: workout` data with explicit units;
+long exercise details remain in the raw source with an explicit omission flag.
+Workout events preserve notes, have no reminders, and do not block availability.
+
+`backfillHealineWorkouts()` prioritizes the latest 30 days plus today, with a
+240-second start budget and `workoutBackfillDate` checkpoint. It advances only
+after source processing and workout Calendar writes succeed, obeys the shared
+Calendar cooldown, and can be invoked again to continue. Regular historical
+reconciliation updates daily cards and personal references afterward.
+
+Recorded exercise and the following 30 minutes are excluded from low-movement
+heart-rate comparison and its baseline. The 30-minute display rule is not a
+claim that physiological recovery is complete then. Workout metrics are not
+added to overlapping daily activity totals. See the
+[collector workout contract](/api-reference/collectors#workout-sessions).
+
+### Collection diagnostics
 
 Each response stores its original HTTP status and JSON body. Identical daily
 responses reuse the same batch. HTTP errors, empty dates, absent detailed samples,

@@ -10,7 +10,7 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.models import CollectorBatch, CollectorConnection, EventRecord, HealthScore, SleepDetails
+from app.models import CollectorBatch, CollectorConnection, EventRecord, HealthScore, SleepDetails, WorkoutDetails
 from app.repositories.collector_repository import collector_repository as repository
 from app.schemas.collector import CollectorDelivery, CollectorPaired, CollectorPairingCreated, CollectorStatus
 from app.schemas.enums import HealthScoreCategory, ProviderName, SeriesType
@@ -108,7 +108,12 @@ class CollectorService:
         if batch.http_status != 200:
             batch.normalized = {}
             batch.status = "provider_error"
-            batch.diagnostics = {"code": "http_error", "http_status": batch.http_status}
+            batch.diagnostics = {
+                "code": "workout_access_denied"
+                if batch.kind == "workout" and batch.http_status == 403
+                else "http_error",
+                "http_status": batch.http_status,
+            }
             return repository.save_batch(db, batch)
         try:
             normalized, diagnostics = normalize_polar_response(batch.kind, batch.date, batch.payload)
@@ -167,6 +172,35 @@ class CollectorService:
                 )
         timeseries_service.bulk_create_samples(db, samples)
         source = repository.data_source(db, connection.user_id)
+        for workout in data["workouts"]:
+            record = EventRecord(
+                id=uuid4(),
+                data_source_id=source.id,
+                source_name="Polar AccessLink v4",
+                category="workout",
+                type=workout["sport"]["type"],
+                start_datetime=datetime.fromtimestamp(workout["startMs"] / 1000, UTC),
+                end_datetime=datetime.fromtimestamp(workout["endMs"] / 1000, UTC),
+                duration_seconds=round(workout["durationSeconds"]),
+                zone_offset=workout["zoneOffset"],
+                external_id="polar-v4-workout-" + workout["id"],
+            )
+            zones = [zone for exercise in workout["exercises"] for zone in exercise["zones"]]
+            detail = WorkoutDetails(
+                record_id=record.id,
+                heart_rate_min=workout["heartRateMinBpm"],
+                heart_rate_max=workout["heartRateMaxBpm"],
+                heart_rate_avg=workout["heartRateAvgBpm"],
+                energy_burned=workout["energyKcal"],
+                distance=workout["distanceMeters"],
+                label=workout["name"],
+                entry_source="automatic",
+                # Keep exercise identity and provider bounds for multisport records.
+                segments=workout["exercises"] or None,
+                hr_zones=self._zones(zones, "ZONE_TYPE_HEART_RATE", "max_bpm"),
+                power_zones=self._zones(zones, "ZONE_TYPE_POWER", "max_watts"),
+            )
+            repository.save_workout(db, record, detail)
         for sleep in data["sleeps"]:
             start = datetime.fromtimestamp(sleep["startMs"] / 1000, UTC)
             end = datetime.fromtimestamp(sleep["endMs"] / 1000, UTC)
@@ -227,6 +261,22 @@ class CollectorService:
                     ),
                 )
 
+    @staticmethod
+    def _zones(zones: list[dict[str, Any]], kind: str, maximum_key: str) -> dict[str, Any] | None:
+        # Different multisport legs may use different thresholds. Merge only
+        # identical bounds; never label incompatible zones as one shared scale.
+        grouped: dict[tuple[float, float], float] = {}
+        for zone in zones:
+            if zone["type"] == kind:
+                key = (zone["lower"], zone["upper"])
+                grouped[key] = grouped.get(key, 0) + zone["durationSeconds"]
+        bounds = sorted(grouped)
+        if not bounds or any(bounds[i][0] < bounds[i - 1][1] for i in range(1, len(bounds))):
+            return None
+        return {
+            "zones": [{"zone": i + 1, "seconds": grouped[b], maximum_key: round(b[1])} for i, b in enumerate(bounds)]
+        }
+
     def status(self, db: Session, user_id: UUID) -> CollectorStatus:
         connection = repository.connection_for_user(db, user_id)
         return CollectorStatus(
@@ -271,6 +321,20 @@ class CollectorService:
             else "error"
             if any(b.http_status != 200 for b in sleep_batches)
             else "granted"
+        )
+        workout_batches = [b for b in latest if b.kind == "workout"]
+        result["workoutAccess"] = (
+            "needs_connection"
+            if any(b.http_status == 403 for b in workout_batches)
+            else "error"
+            if any(b.status not in ("processed", "empty") for b in workout_batches)
+            else "granted"
+            if workout_batches
+            else "unknown"
+        )
+        # A session can be returned by adjacent source dates; never count it twice.
+        result["workouts"] = list(
+            {w["id"]: w for w in sorted(result["workouts"], key=lambda w: str(w.get("modifiedAt") or ""))}.values()
         )
         result["source"] = "healine-platform"
         return result
