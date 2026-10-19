@@ -71,6 +71,16 @@ test('workout-only days get a day card and a workout event without inventing dai
   assert.equal(saved.filter(e=>e.getTag('healineDay')).length,1);
   assert.equal(result.summaries[0].steps,null);
 });
+
+test('daily summary lists workout duration in whole minutes and seconds, never fractional minutes', () => {
+  const {c,calendar,saved}=setup();c.getOrCreateHealineCalendar_=()=>calendar;
+  const w={...workoutFixture(),durationSeconds:2537};
+  c.writeHealineRange_({start:new Date('2026-09-17T00:00:00+09:00'),end:new Date('2026-09-18T00:00:00+09:00')},
+    {workouts:[w],workoutAccess:'granted'},null);
+  const day=saved.find(e=>e.getTag('healineDay'));
+  const line=day.description.split('\n').find(l=>l.includes('달리기'));
+  assert.equal(line,'23:30 · 달리기 · 42분 17초');
+});
 test('daily summaries are idempotent, free of reminders, and preserve personal notes', () => {
   const {c,calendar,saved}=setup(); const events=[];
   const day=c.buildDailySummary_('2026-09-17',[],{sleepAccess:'needs_connection'});

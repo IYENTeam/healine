@@ -318,7 +318,7 @@ function dailyDescription_(summary) {
   lines.push('', '운동 기록');
   if ((summary.workouts || []).length) {
     summary.workouts.forEach(function (w) {
-      lines.push(clockTime_(w.startMs) + ' · ' + w.sport.label + ' · ' + durationText_(w.durationSeconds / 60));
+      lines.push(clockTime_(w.startMs) + ' · ' + w.sport.label + ' · ' + workoutDurationText_(w.durationSeconds));
     });
     lines.push('운동별 상세 기록은 해당 시간의 🏋️ 일정에 있습니다. 운동 거리·칼로리는 일상 활동과 중복 합산하지 않습니다.');
   } else {
