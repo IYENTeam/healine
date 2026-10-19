@@ -1,6 +1,7 @@
 from .api_key import ApiKey
 from .application import Application
 from .archival_setting import ArchivalSetting
+from .collector import CollectorBatch, CollectorConnection
 from .data_point_series import DataPointSeries
 from .data_point_series_archive import DataPointSeriesArchive
 from .data_source import DataSource
@@ -35,6 +36,8 @@ __all__ = [
     "ApiKey",
     "Application",
     "ArchivalSetting",
+    "CollectorBatch",
+    "CollectorConnection",
     "Developer",
     "DataSource",
     "DataPointSeriesArchive",

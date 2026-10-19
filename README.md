@@ -36,11 +36,14 @@ Compose builds Healine from this checkout. PostgreSQL and Redis use persistent v
 | `backend/` | FastAPI, PostgreSQL models, provider integrations, Celery jobs |
 | `frontend/` | React developer portal |
 | `mcp/` | MCP server for querying stored health data |
+| `integrations/polar-calendar/` | Polar v4 Apps Script collector, calendar, tests, deployment helpers |
 | `docs/` | Setup, API, provider, and SDK documentation |
 
 ## Polar integration
 
-The inherited Polar connector uses AccessLink v3. AccessLink v4 collection and the Healine Calendar integration are planned extensions; they are not implemented in this fork yet. See the [Polar setup guide](docs/providers/polar-api-integration.mdx) for the current connector.
+The Polar v4 calendar collector now runs through Healine: Apps Script retains Polar authorization, uploads daily resource responses, and renders calendar entries from observations persisted by the platform. Healine stores the raw responses, normalizes shared health records, retries processing failures, and shows collection diagnostics in each user profile. See the [integration runbook](docs/deployment/polar-calendar-integration.mdx) for setup and operational limits.
+
+The inherited [Polar v3 connector](docs/providers/polar-api-integration.mdx) remains available as a separate connection. Pairing the existing v4 collector does not require creating a v3 connection.
 
 ## Compatibility
 
