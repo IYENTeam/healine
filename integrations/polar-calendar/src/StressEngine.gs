@@ -186,9 +186,51 @@ function buildHourlyObservations_(windows) {
       elevatedWindows: rows.filter(function (r) { return r.status === 'ABOVE_USUAL'; }).length,
       elevatedMinutes: longest * 15,
       activeMinutes: rows.reduce(function (n, r) { return n + r.activeMinutes; }, 0),
-      lowMovementMinutes: rows.filter(function (r) { return r.isQuiet; }).length * 15
+      lowMovementMinutes: rows.filter(function (r) { return r.isQuiet; }).length * 15,
+      wear: sumWear_(rows)
     };
   });
+}
+
+// Skin contact distinguishes "not worn" from "worn but unreceived". Without contact data both stay unknown.
+function contactMinutes_(intervals, start, end, contact) {
+  var ms = 0;
+  intervals.forEach(function (i) {
+    if (i.contact === contact) ms += Math.max(0, Math.min(end, i.endMs) - Math.max(start, i.startMs));
+  });
+  return Math.min(Math.round((end - start) / 60000), Math.round(ms / 60000));
+}
+
+function attachQuarterContext_(row, data, ppiByStart) {
+  var contacts = data.skinContacts || [];
+  if (contacts.length) {
+    var worn = contactMinutes_(contacts, row.startMs, row.endMs, true);
+    var off = Math.min(15 - worn, contactMinutes_(contacts, row.startMs, row.endMs, false));
+    row.wear = { contactMinutes: worn, noContactMinutes: off, unknownMinutes: 15 - worn - off };
+  } else {
+    row.wear = null;
+  }
+  var ppi = ppiByStart[row.startMs];
+  row.ppi = ppi ? { samples: ppi.samples, validIntervals: ppi.validIntervals, pairs: ppi.pairs, rmssdMs: ppi.rmssdMs } : null;
+  return row;
+}
+
+function sumWear_(rows) {
+  var known = rows.filter(function (r) { return r.wear; });
+  if (!known.length) return null;
+  return ['contactMinutes', 'noContactMinutes', 'unknownMinutes'].reduce(function (total, key) {
+    total[key] = known.reduce(function (n, r) { return n + r.wear[key]; }, 0);
+    return total;
+  }, { quarters: known.length });
+}
+
+function summarizePpi_(rows) {
+  var recorded = rows.filter(function (r) { return r.ppi; });
+  if (!recorded.length) return null;
+  var rmssd = recorded.filter(function (r) { return r.ppi.rmssdMs !== null; }).map(function (r) { return r.ppi.rmssdMs; });
+  return { recordedQuarters: recorded.length, rmssdQuarters: rmssd.length,
+    medianRmssdMs: rmssd.length ? round_(median_(rmssd), 1) : null,
+    validIntervals: recorded.reduce(function (n, r) { return n + r.ppi.validIntervals; }, 0) };
 }
 
 function buildDailySummary_(date, windows, data) {
@@ -221,6 +263,14 @@ function buildDailySummary_(date, windows, data) {
     source: data.source,
     syncWarning: data.syncWarning || null,
     diagnostics: (data.diagnostics || []).filter(function (entry) { return entry.date === date; }),
+    training: (data.training || []).filter(function (t) { return t.date === date; })[0] || null,
+    temperature: (data.temperatureNights || []).filter(function (t) { return t.date === date; })[0] || null,
+    resilience: (data.resilience || []).filter(function (r) { return r.date === date; })[0] || null,
+    tests: (data.tests || []).filter(function (t) { return dateKeyPure_(t.startMs) === date; }),
+    checkin: (data.checkins || []).filter(function (c) { return c.type === 'day_condition' && c.date === date; })[0] || null,
+    wear: sumWear_(rows),
+    ppi: summarizePpi_(rows),
+    missingExtendedScopes: data.missingExtendedScopes || [],
     guidance: nightly && validNumber_(nightly.ansRate) !== null && nightly.ansRate <= 2
       ? 'Polar 자율신경 회복이 낮은 단계입니다. 수면 길이·끊김·현재 피로를 함께 확인하세요. 낮의 심리적 스트레스 원인까지 알 수 있는 값은 아닙니다.'
       : indicator !== null && indicator <= 3

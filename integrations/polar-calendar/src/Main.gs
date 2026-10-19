@@ -183,21 +183,30 @@ function auditHealineEvents_(events, from, to) {
 // The same writer handles recent data, old dates and replayed snapshots.
 function writeHealineRange_(range, data, baseline) {
   data.nightlyHistory = baseline && baseline.nights || data.nightlyRecharges || [];
+  data.missingExtendedScopes = missingExtendedScopes_();
   var windows = evaluateHealineRange_(data, range.start.getTime(), range.end.getTime(), baseline);
   var calendar = getOrCreateHealineCalendar_();
   var events = calendar.getEvents(range.start, range.end);
   var workouts = (data.workouts || []).filter(function (workout) {
     return workout.startMs < range.end.getTime() && workout.endMs > range.start.getTime();
   });
-  workouts.forEach(function (workout) { upsertHealineWorkout_(calendar, events, workout); });
+  var dates = isoDatesBetween_(formatIsoDate_(range.start),
+    addIsoDays_(formatIsoDate_(new Date(range.end.getTime() - 1)), 1));
+  // Read notes before rewriting, so this run already shows what the owner wrote.
+  syncHealineCheckins_(calendar, events, dates, workouts, data);
+  workouts.forEach(function (workout) {
+    workout.nextNight = (data.workoutResponses || {})[workout.id] || null;
+    workout.checkinRpe = (data.checkins || []).filter(function (c) {
+      return c.type === 'workout_rpe' && c.target === workout.id;
+    }).map(function (c) { return c.value; })[0] || null;
+    upsertHealineWorkout_(calendar, events, workout);
+  });
   var hours = buildHourlyObservations_(windows), count = 0;
   hours.forEach(function (hour) {
     if (!hasHourlyObservations_(hour) && !findHealineEvent_(events, 'healineHour', hourKey_(hour.startMs))) return;
     hour.source = data.source || 'apps-script';
     upsertHealineHour_(calendar, events, hour); count += 1;
   });
-  var dates = isoDatesBetween_(formatIsoDate_(range.start),
-    addIsoDays_(formatIsoDate_(new Date(range.end.getTime() - 1)), 1));
   var summaries = dates.map(function (date) {
     var summary = buildDailySummary_(date, windows, data);
     if (summary.nightly || summary.sleep || summary.workouts.length || summary.activityMinutes || summary.observedWindows ||
@@ -210,6 +219,59 @@ function writeHealineRange_(range, data, baseline) {
   return { windows: windows, dates: dates, summaries: summaries, hourlyRecordCount: count, workoutRecordCount: workouts.length };
 }
 
+var HEALINE_NOTE_MARKER = '\n\n[내 메모]\n';
+
+function memoText_(event) {
+  var description = event ? event.getDescription() : '';
+  var index = description.indexOf(HEALINE_NOTE_MARKER);
+  return index >= 0 ? description.slice(index + HEALINE_NOTE_MARKER.length) : '';
+}
+
+// A check-in is one line in the owner's notes: "컨디션 3" (1-5) on a day, "RPE 7" (1-10) on a workout.
+function parseMemoCheckin_(text, kind) {
+  var pattern = kind === 'workout_rpe'
+    ? /(?:^|\n)[ \t]*(?:RPE|체감)[ \t]*[:：]?[ \t]*(10|[1-9])(?![0-9])/i
+    : /(?:^|\n)[ \t]*컨디션[ \t]*[:：]?[ \t]*([1-5])(?![0-9])/;
+  var match = pattern.exec(text || '');
+  return match ? Number(match[1]) : null;
+}
+
+function syncHealineCheckins_(calendar, events, dates, workouts, data) {
+  var platform = isHealinePlatformConnected_(), props = PropertiesService.getUserProperties();
+  dates.forEach(function (date) {
+    var previous = (data.checkins || []).filter(function (c) { return c.date === date; });
+    var found = [], dayEvent = findHealineEvent_(events, 'healineDay', date);
+    var condition = dayEvent ? parseMemoCheckin_(memoText_(dayEvent), 'day_condition') : null;
+    if (condition !== null) found.push({ type: 'day_condition', value: condition });
+    else if (!dayEvent) found = found.concat(previous.filter(function (c) { return c.type === 'day_condition'; }));
+    workouts.filter(function (w) { return dateKeyPure_(w.startMs) === date; }).forEach(function (workout) {
+      var event = findHealineEvent_(events, 'healineWorkout', workout.id);
+      var eventId = event ? null : props.getProperty('HEALINE_WORKOUT_EVENT_' + workout.id);
+      if (!event && eventId) event = calendar.getEventById(eventId);
+      if (!event) {
+        // An unread note is not a removed note.
+        found = found.concat(previous.filter(function (c) { return c.type === 'workout_rpe' && c.target === workout.id; }));
+        return;
+      }
+      var rpe = parseMemoCheckin_(memoText_(event), 'workout_rpe');
+      if (rpe !== null) found.push({ type: 'workout_rpe', workoutId: workout.id, value: rpe });
+    });
+    found = found.map(function (c) {
+      return c.type === 'workout_rpe' ? { type: c.type, workoutId: c.workoutId || c.target, value: c.value }
+        : { type: c.type, value: c.value };
+    });
+    if (platform && (found.length || previous.length)) {
+      try {
+        platformRequest_('/batches', { kind: 'checkin', date: date, fetched_at: new Date().toISOString(),
+          http_status: 200, payload: { checkins: found } });
+      } catch (error) { console.warn('체크인 저장 보류: ' + date + ' ' + error.message); }
+    }
+    data.checkins = (data.checkins || []).filter(function (c) { return c.date !== date; }).concat(found.map(function (c) {
+      return { type: c.type, date: date, target: c.workoutId || date, value: c.value };
+    }));
+  });
+}
+
 function evaluateHealineRange_(data, startMs, endMs, baseline) {
   var buckets = {};
   ['heartRateSamples', 'metSamples', 'stepSamples'].forEach(function (kind) {
@@ -219,15 +281,16 @@ function evaluateHealineRange_(data, startMs, endMs, baseline) {
       buckets[key][kind].push(sample);
     });
   });
-  var output = [];
+  var output = [], ppiByStart = {};
+  (data.ppiQuarters || []).forEach(function (quarter) { ppiByStart[quarter.startMs] = quarter; });
   for (var start = startMs; start < endMs; start += 900000) {
     var row = buckets[start] || {};
     var mets = [-1800000, -900000, 0].reduce(function (all, offset) {
       return all.concat((buckets[start + offset] || {}).metSamples || []);
     }, []);
-    output.push(evaluateHealineWindow_({ windowStartMs: start, windowEndMs: start + 900000,
+    output.push(attachQuarterContext_(evaluateHealineWindow_({ windowStartMs: start, windowEndMs: start + 900000,
       heartRateSamples: row.heartRateSamples || [], metSamples: mets, stepSamples: row.stepSamples || [],
-      sleeps: data.sleeps, workouts: data.workouts, baseline: baseline }));
+      sleeps: data.sleeps, workouts: data.workouts, baseline: baseline }), data, ppiByStart));
   }
   return output;
 }

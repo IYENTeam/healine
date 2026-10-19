@@ -2,7 +2,7 @@ var HEALINE = Object.freeze({
   timezone: 'Asia/Seoul',
   timezoneOffset: '+09:00',
   apiBaseUrl: 'https://www.polaraccesslink.com/v4/data',
-  platformOrigin: 'https://healine.iyendev.com',
+  platformOrigin: 'https://healine.iyen.dev',
   authorizationUrl: 'https://auth.polar.com/oauth/authorize',
   tokenUrl: 'https://auth.polar.com/oauth/token',
   scopes: [
@@ -12,6 +12,13 @@ var HEALINE = Object.freeze({
     'sleep:read',
     'training_sessions:read',
     'sports:read'
+  ],
+  // Requested only from the separate "측정 권한 추가" link, so the existing connection never depends on them.
+  extendedScopes: [
+    'tests:read',
+    'skin_contact:read',
+    'temperature_measurement:read',
+    'ppi_data:read'
   ],
   calendarName: 'Healine 상태',
   calendarId: 'f5323b2dbd20de99724fec1d9d245452e60c0fc9e458829f542ad4651b492d9b@group.calendar.google.com',

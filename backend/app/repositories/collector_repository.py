@@ -1,4 +1,4 @@
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, time
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -16,7 +16,7 @@ from app.models import (
     WorkoutDetails,
 )
 from app.repositories.data_source_repository import DataSourceRepository
-from app.schemas.enums import ProviderName
+from app.schemas.enums import HealthScoreCategory, ProviderName
 
 
 class CollectorRepository:
@@ -173,13 +173,22 @@ class CollectorRepository:
         )
 
     def observations(
-        self, db: Session, connection_id: UUID, start: date, end: date, *, successful: bool
+        self,
+        db: Session,
+        connection_id: UUID,
+        start: date,
+        end: date,
+        *,
+        successful: bool,
+        kinds: tuple[str, ...] | None = None,
     ) -> list[CollectorBatch]:
         statement = select(CollectorBatch).where(
             CollectorBatch.connection_id == connection_id,
             CollectorBatch.date >= start,
             CollectorBatch.date < end,
         )
+        if kinds is not None:
+            statement = statement.where(CollectorBatch.kind.in_(kinds))
         if successful:
             statement = statement.where(CollectorBatch.status == "processed")
         statement = statement.distinct(CollectorBatch.date, CollectorBatch.kind).order_by(
@@ -189,6 +198,28 @@ class CollectorRepository:
             CollectorBatch.received_at.desc(),
         )
         return list(db.scalars(statement))
+
+    def sleep_record(self, db: Session, data_source_id: UUID, external_id: str) -> EventRecord | None:
+        return db.scalar(
+            select(EventRecord).where(
+                EventRecord.data_source_id == data_source_id, EventRecord.external_id == external_id
+            )
+        )
+
+    def resilience_scores(self, db: Session, user_id: UUID, start: date, end: date) -> list[HealthScore]:
+        return list(
+            db.scalars(
+                select(HealthScore)
+                .where(
+                    HealthScore.user_id == user_id,
+                    HealthScore.provider == ProviderName.INTERNAL,
+                    HealthScore.category == HealthScoreCategory.RESILIENCE,
+                    HealthScore.recorded_at >= datetime.combine(start, time(), UTC),
+                    HealthScore.recorded_at < datetime.combine(end, time(), UTC),
+                )
+                .order_by(HealthScore.recorded_at)
+            )
+        )
 
     def pending(self, db: Session, limit: int = 20) -> list[UUID]:
         return list(

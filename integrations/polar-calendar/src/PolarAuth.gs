@@ -32,7 +32,7 @@ function doGet(event) {
         !config.clientId || !config.clientSecret || !config.redirectUri) {
       return renderPolarSetupPage_(config.redirectUri);
     }
-    return renderPolarConnectPage_();
+    return renderPolarConnectPage_(Boolean(event && event.parameter && event.parameter.extended === '1'));
   } catch (error) {
     return HtmlService.createHtmlOutput(
       '<h2>설정 확인 필요</h2><pre>' + escapeHtml_(error.message) + '</pre>'
@@ -48,7 +48,7 @@ function doPost(event) {
 
     var clientId = String(parameters.client_id || '').trim();
     var clientSecret = String(parameters.client_secret || '').trim();
-    var redirectUri = ScriptApp.getService().getUrl();
+    var redirectUri = getHealineConfig_().redirectUri;
     if (clientId.length < 8 || clientSecret.length < 8 || !redirectUri) {
       throw new Error('Client ID, Client Secret 또는 배포 URL을 확인하세요.');
     }
@@ -77,7 +77,7 @@ function renderPolarSetupPage_(redirectUri) {
       '<h2>Healine · Polar Vantage V3 설정</h2>' +
       '<p>Polar AccessLink Admin에서 API Client를 만든 뒤 아래 값을 입력하세요.</p>' +
       '<p><b>Authorization redirect URL</b><br><code style="word-break:break-all">' + safeRedirect + '</code></p>' +
-      '<form method="post" action="' + safeRedirect + '" target="_top">' +
+      '<form method="post" action="' + escapeHtml_(ScriptApp.getService().getUrl()) + '" target="_top">' +
       '<input type="hidden" name="setup_nonce" value="' + escapeHtml_(nonce) + '">' +
       '<label>Client ID<br><input required name="client_id" autocomplete="off" style="width:100%;padding:8px"></label><br><br>' +
       '<label>Client Secret<br><input required type="password" name="client_secret" autocomplete="new-password" style="width:100%;padding:8px"></label><br><br>' +
@@ -87,17 +87,22 @@ function renderPolarSetupPage_(redirectUri) {
   );
 }
 
-function renderPolarConnectPage_() {
-  var url = getPolarAuthorizationUrl();
+function renderPolarConnectPage_(extended) {
+  var url = getPolarAuthorizationUrl(extended);
+  var other = ScriptApp.getService().getUrl() + (extended ? '' : '?extended=1');
   return HtmlService.createHtmlOutput(
     '<meta name="viewport" content="width=device-width,initial-scale=1">' +
       '<div style="max-width:680px;margin:40px auto;font:16px system-ui;line-height:1.55">' +
       '<h2>Healine · Polar Vantage V3</h2>' +
       '<p>아래 버튼으로 Polar Flow 데이터 접근을 허용하세요.</p>' +
       '<p><a style="display:inline-block;padding:12px 18px;background:#d71920;color:white;' +
-      'text-decoration:none;border-radius:6px" target="_top" href="' + escapeHtml_(url) + '">Polar 연결</a></p>' +
-      '<p>요청 권한: 연속 심박수, 활동량, Nightly Recharge, 수면, 운동 기록과 종목 읽기</p>' +
-      '<p>운동 기록을 추가하려면 위 버튼으로 운동 조회 권한을 허용하세요. 기존 수집과 캘린더 기록은 유지됩니다.</p></div>'
+      'text-decoration:none;border-radius:6px" target="_top" href="' + escapeHtml_(url) + '">' +
+      (extended ? '측정 권한 추가 연결' : 'Polar 연결') + '</a></p>' +
+      '<p>요청 권한: 연속 심박수, 활동량, Nightly Recharge, 수면, 운동 기록과 종목 읽기' +
+      (extended ? ', 측정 테스트 결과, 피부 접촉(착용 여부), 피부 온도, 박동 간격(PPI)' : '') + '</p>' +
+      '<p>Polar 화면에서 항목을 해제하면 해당 기록만 빠지고 기존 수집과 캘린더 기록은 유지됩니다.</p>' +
+      '<p><a target="_top" href="' + escapeHtml_(other) + '">' +
+      (extended ? '기본 권한만 연결하는 화면' : '측정 권한 추가 화면 (착용 여부·피부 온도·테스트·PPI)') + '</a></p></div>'
   );
 }
 
@@ -110,7 +115,7 @@ function verifySetupNonce_(receivedNonce) {
   }
 }
 
-function getPolarAuthorizationUrl() {
+function getPolarAuthorizationUrl(extended) {
   var config = assertHealineConfigured_();
   var state = Utilities.getUuid();
   var userProperties = PropertiesService.getUserProperties();
@@ -122,10 +127,26 @@ function getPolarAuthorizationUrl() {
   return HEALINE.authorizationUrl + '?' + encodeQuery_({
     client_id: config.clientId,
     response_type: 'code',
-    scope: HEALINE.scopes.join(' '),
+    scope: HEALINE.scopes.concat(extended ? HEALINE.extendedScopes : []).join(' '),
     redirect_uri: config.redirectUri,
     state: state
   });
+}
+
+// Run from the owner's editor only after registering this exact URL in the
+// existing Polar client. Token stores, scopes and collection triggers stay put.
+function migratePolarRedirectToBroker() {
+  var origin = 'https://auth.iyen.dev';
+  var response = UrlFetchApp.fetch(origin + '/healthz', { muteHttpExceptions: true });
+  var health = JSON.parse(response.getContentText());
+  if (response.getResponseCode() !== 200 || !health.ok ||
+      health.publicBase !== origin || health.providers.polar !== 'healine-relay') {
+    throw new Error('Polar callback relay health verification failed. Configuration unchanged.');
+  }
+  var redirectUri = origin + '/oauth/polar/callback';
+  PropertiesService.getScriptProperties().setProperty(HEALINE.propertyKeys.redirectUri, redirectUri);
+  Logger.log('Polar redirect configured: ' + redirectUri + '; existing tokens preserved.');
+  return redirectUri;
 }
 
 function verifyOauthState_(receivedState) {

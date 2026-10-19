@@ -12,7 +12,23 @@ from zoneinfo import ZoneInfo
 from app.constants.workout_types.polar import get_unified_workout_type
 
 SEOUL = ZoneInfo("Asia/Seoul")
-OBSERVATION_KEYS = ("heartRateSamples", "metSamples", "stepSamples", "nightlyRecharges", "sleeps", "workouts")
+OBSERVATION_KEYS = (
+    "heartRateSamples",
+    "metSamples",
+    "stepSamples",
+    "nightlyRecharges",
+    "sleeps",
+    "workouts",
+    "tests",
+    "skinContacts",
+    "temperatureSamples",
+    "ppiQuarters",
+    "checkins",
+)
+# PPI quality rules are engineering choices for availability reporting, not a validated HRV protocol.
+PPI_MAX_ERROR_MS = 20
+PPI_MIN_PAIRS = 30
+PPI_FLAG_SKIN_CONTACT, PPI_FLAG_MOVEMENT, PPI_FLAG_OFFLINE = 1, 2, 4
 SLEEP_SCORE_COMPONENTS = (
     "continuityScore",
     "efficiencyScore",
@@ -115,10 +131,17 @@ def normalize_polar_response(kind: str, day: date, payload: dict[str, Any]) -> t
         "sleep": "nightSleeps",
         "recovery": "nightlyRechargeResults",
         "workout": "trainingSessions",
+        "test": "tests",
+        "skin_contact": "skinContactPeriods",
+        "temperature": "temperatureMeasurementPeriod",
+        "ppi": "dailyPpiSamples",
+        "checkin": "checkins",
     }[kind]
     day_key = {"heart_rate": "heartRateSamplesPerDay", "activity": "activityDays"}.get(kind)
     # The live REST gateway also returns daily collections without the Swagger wrapper.
-    unwrapped_daily = day_key is not None and day_key in root and expected_key not in root
+    unwrapped_daily = (day_key is not None and day_key in root and expected_key not in root) or (
+        kind == "ppi" and "healinePpiColumns" in root
+    )
     # Empty protobuf objects can omit empty repeated fields. A nonempty, unknown
     # shape is a schema failure, not an assertion that no health data exists.
     if root and expected_key not in root and not unwrapped_daily:
@@ -202,6 +225,16 @@ def normalize_polar_response(kind: str, day: date, payload: dict[str, Any]) -> t
             )
     elif kind == "workout":
         output["workouts"] = _workouts(day, root, diagnostics)
+    elif kind == "test":
+        output["tests"] = _tests(day, root, diagnostics)
+    elif kind == "skin_contact":
+        output["skinContacts"] = _skin_contacts(day, root, diagnostics)
+    elif kind == "temperature":
+        output["temperatureSamples"] = _temperatures(day, root, diagnostics)
+    elif kind == "ppi":
+        output["ppiQuarters"] = _ppi_quarters(day, root, diagnostics)
+    elif kind == "checkin":
+        output["checkins"] = _checkins(day, root, diagnostics)
     else:
         nights = root.get("nightlyRechargeResults")
         if isinstance(nights, dict):
@@ -269,11 +302,14 @@ def _workout_sport(reference: Any, catalog: dict[str, Any]) -> dict[str, Any]:
     entry = _object(catalog.get(sport_id))
     name = str(entry.get("name") or "OTHER").upper()
     parent = str(entry.get("parentName") or name).upper()
+    # Without the catalog the sport is unknown, not Polar's "OTHER" sport.
+    fallback = f"종목 미확인 (Polar ID {sport_id})" if sport_id else "종목 미확인"
     return {
         "id": sport_id,
         "name": name,
-        "label": str(entry.get("label") or name)[:100],
+        "label": str(entry.get("label") or (name if entry else fallback))[:100],
         "type": get_unified_workout_type(parent, name).value,
+        "catalogResolved": bool(entry),
     }
 
 
@@ -405,6 +441,8 @@ def _workouts(day: date, root: dict[str, Any], diagnostics: dict[str, Any]) -> l
             "trainingLoad": _workout_load(raw.get("trainingLoadReport")),
             "polarTrainingLoad": _number(raw.get("trainingLoad"), 0, 65535),
             "trainingBenefit": raw.get("trainingBenefit"),
+            # Polar's post-session feeling value as provided (0-1); the scale's direction is not inferred here.
+            "feeling": _number(raw.get("feeling"), 0, 1),
             "recoveryTimeSeconds": _millis_seconds(raw.get("recoveryTimeMillis")),
             "exercises": exercises,
             "source": "polar_accesslink_v4",
@@ -413,3 +451,255 @@ def _workouts(day: date, root: dict[str, Any], diagnostics: dict[str, Any]) -> l
         if previous is None or str(entry["modifiedAt"] or "") >= str(previous["modifiedAt"] or ""):
             sessions[identifier] = entry
     return sorted(sessions.values(), key=lambda item: item["startMs"])
+
+
+def _milliseconds(stamp: datetime) -> int:
+    return int(stamp.timestamp() * 1000)
+
+
+TEST_RESULTS: dict[str, tuple[str, dict[str, tuple[float, float]], tuple[str, ...]]] = {
+    "orthostaticTestResult": (
+        "orthostatic",
+        {
+            **{
+                key: (200, 3000)
+                for key in ("rrAvgSupine", "rrAvgStand", "rrMinStandup", "rrLtAvgSupine", "rrLtAvgStand")
+            },
+            **{key: (0, 1000) for key in ("rmssdSupine", "rmssdStand", "rmssdLtAvgSupine", "rmssdLtAvgStand")},
+        },
+        (),
+    ),
+    "fitnessTestResult": (
+        "fitness",
+        {"ownIndex": (10, 95), "maximumHeartRate": (100, 240), "averageHeartRate": (20, 240)},
+        ("fitnessClass",),
+    ),
+    "spo2TestResult": (
+        "spo2",
+        {
+            "bloodOxygenPercent": (50, 100),
+            "averageHeartRateBpm": (15, 240),
+            "heartRateVariabilityMs": (0, 2000),
+            "spo2QualityAveragePercent": (0, 100),
+        },
+        ("testStatus", "spo2Class", "spo2ValueDeviationFromBaseline"),
+    ),
+    "ecgTestResult": (
+        "ecg",
+        {"averageHeartRateBpm": (15, 240), "heartRateVariabilityMs": (0, 2000), "rriMs": (200, 4000)},
+        ("heartRateVariabilityLevel",),
+    ),
+    "jumpTestResult": ("jump", {}, ()),
+    "rrRecording": ("rr_recording", {}, ()),
+}
+
+
+def _tests(day: date, root: dict[str, Any], diagnostics: dict[str, Any]) -> list[dict[str, Any]]:
+    tests = []
+    for raw in _list(root.get("tests")):
+        raw = _object(raw)
+        diagnostics["raw_samples"] += 1
+        start = _timestamp(day, raw.get("startTime"))
+        result_key = next((key for key in TEST_RESULTS if raw.get(key) is not None), None)
+        if start is None or result_key is None:
+            diagnostics["rejected_samples"] += 1
+            continue
+        if start.astimezone(SEOUL).date() != day:
+            continue
+        diagnostics["days"] = 1
+        kind, fields, labels = TEST_RESULTS[result_key]
+        result = _object(raw[result_key])
+        tests.append(
+            {
+                "type": kind,
+                "startMs": _milliseconds(start),
+                "modifiedAt": raw.get("modified"),
+                "values": {key: _number(result.get(key), low, high) for key, (low, high) in fields.items()},
+                "labels": {key: str(result[key])[:80] for key in labels if isinstance(result.get(key), str)},
+            }
+        )
+    return sorted(tests, key=lambda item: item["startMs"])
+
+
+def _skin_contacts(day: date, root: dict[str, Any], diagnostics: dict[str, Any]) -> list[dict[str, Any]]:
+    day_start = datetime.combine(day, time(), SEOUL)
+    day_end = day_start + timedelta(days=1)
+    intervals = []
+    for period in _list(root.get("skinContactPeriods")):
+        period = _object(period)
+        start = _timestamp(day, period.get("startTime"))
+        stop = _timestamp(day, period.get("stopTime"))
+        if start is None or stop is None or not start < stop <= start + timedelta(days=2):
+            diagnostics["rejected_samples"] += 1
+            continue
+        changes = []
+        for change in _list(period.get("skinContactChanges")):
+            change = _object(change)
+            diagnostics["raw_samples"] += 1
+            delta = _number(change.get("recordingTimeDeltaMilliseconds"), 0, 172_800_000)
+            if delta is None or not isinstance(change.get("skinContact"), bool):
+                diagnostics["rejected_samples"] += 1
+                continue
+            changes.append((start + timedelta(milliseconds=delta), change["skinContact"]))
+        changes.sort(key=lambda item: item[0])
+        # A change sample holds until the next change or the end of its period.
+        for index, (moment, contact) in enumerate(changes):
+            end = changes[index + 1][0] if index + 1 < len(changes) else stop
+            low, high = max(moment, day_start), min(end, stop, day_end)
+            if low < high:
+                diagnostics["days"] = 1
+                intervals.append({"startMs": _milliseconds(low), "endMs": _milliseconds(high), "contact": contact})
+    return sorted(intervals, key=lambda item: (item["startMs"], item["endMs"]))
+
+
+TEMPERATURE_TYPES = {"TM_SKIN_TEMPERATURE": "skin", "TM_CORE_TEMPERATURE": "core"}
+
+
+def _temperatures(day: date, root: dict[str, Any], diagnostics: dict[str, Any]) -> list[dict[str, Any]]:
+    samples: dict[tuple[int, str], dict[str, Any]] = {}
+    for period in _list(root.get("temperatureMeasurementPeriod")):
+        period = _object(period)
+        start = _timestamp(day, period.get("startTime"))
+        if start is None:
+            diagnostics["rejected_samples"] += 1
+            continue
+        kind = TEMPERATURE_TYPES.get(str(period.get("measurementType")), "unknown")
+        location = str(period.get("sensorLocation") or "SL_UNKNOWN")[:20]
+        for sample in _list(period.get("temperatureMeasurementSamples")):
+            sample = _object(sample)
+            diagnostics["raw_samples"] += 1
+            delta = _number(sample.get("recordingTimeDeltaMilliseconds"), 0, 172_800_000)
+            celsius = _number(sample.get("temperatureCelsius"), -40, 125)
+            if delta is None or celsius is None:
+                diagnostics["rejected_samples"] += 1
+                continue
+            # Night periods cross midnight; keep every sample and de-duplicate by time downstream.
+            diagnostics["days"] = 1
+            stamp = _milliseconds(start + timedelta(milliseconds=delta))
+            samples[(stamp, kind)] = {
+                "timestampMs": stamp,
+                "celsius": celsius,
+                "type": kind,
+                "sensorLocation": location,
+            }
+    return [samples[key] for key in sorted(samples)]
+
+
+def _ppi_devices(day: date, root: dict[str, Any]) -> list[list[tuple[Any, Any, Any, Any]]]:
+    devices: list[list[tuple[Any, Any, Any, Any]]] = []
+    columns = root.get("healinePpiColumns")
+    if columns is not None:
+        # Lossless columnar transport written by the collector to fit large PPI days in one delivery.
+        for entry in _list(_object(columns).get("days")):
+            entry = _object(entry)
+            if entry.get("date") != day.isoformat():
+                continue
+            for device in _list(entry.get("devices")):
+                device = _object(device)
+                arrays = [
+                    _list(device.get(key)) for key in ("offsetMillis", "ppInterval", "errorEstimateMillis", "flags")
+                ]
+                if len({len(array) for array in arrays}) != 1:
+                    raise CollectorSchemaError("PPI columns differ in length")
+                devices.append(list(zip(*arrays, strict=True)))
+        return devices
+    for entry in _list(root.get("dailyPpiSamples")):
+        entry = _object(entry)
+        if entry.get("date") != day.isoformat():
+            continue
+        for device in _list(entry.get("ppiSamplesPerDevice")):
+            rows = []
+            for sample in _list(_object(device).get("ppiSamples")):
+                sample = _object(sample)
+                flags = (
+                    (PPI_FLAG_SKIN_CONTACT if sample.get("skinContact") is True else 0)
+                    | (PPI_FLAG_MOVEMENT if sample.get("movement") is True else 0)
+                    | (PPI_FLAG_OFFLINE if sample.get("offline") is True else 0)
+                )
+                rows.append(
+                    (sample.get("offsetMillis"), sample.get("ppInterval"), sample.get("errorEstimateMillis"), flags)
+                )
+            devices.append(rows)
+    return devices
+
+
+def _ppi_quarters(day: date, root: dict[str, Any], diagnostics: dict[str, Any]) -> list[dict[str, Any]]:
+    devices = _ppi_devices(day, root)
+    diagnostics["devices"] = len(devices)
+    parsed: list[tuple[float, float, float | None, float]] = []
+    # Use one device's recording; beat sequences from two devices are never interleaved.
+    for raw_offset, raw_interval, raw_error, raw_flags in max(devices, key=len) if devices else []:
+        diagnostics["raw_samples"] += 1
+        offset_value = _number(raw_offset, 0, 86_399_999)
+        interval_value = _number(raw_interval, 300, 2000)
+        flags_value = _number(raw_flags, 0, 7)
+        if offset_value is None or interval_value is None or flags_value is None:
+            diagnostics["rejected_samples"] += 1
+            continue
+        parsed.append((offset_value, interval_value, _number(raw_error, 0, 10000), flags_value))
+    if parsed:
+        diagnostics["days"] = 1
+    base = _milliseconds(datetime.combine(day, time(), SEOUL))
+    quarters: dict[int, dict[str, Any]] = {}
+    previous: tuple[float, float, int] | None = None
+    for offset, interval, error, flags in sorted(parsed, key=lambda row: row[0]):
+        key = int(offset // 900_000)
+        quarter = quarters.setdefault(key, {"samples": 0, "valid": 0, "differences": []})
+        quarter["samples"] += 1
+        flag_bits = int(flags)
+        valid = (
+            bool(flag_bits & PPI_FLAG_SKIN_CONTACT)
+            and not flag_bits & PPI_FLAG_MOVEMENT
+            and error is not None
+            and error <= PPI_MAX_ERROR_MS
+        )
+        if not valid:
+            previous = None
+            continue
+        quarter["valid"] += 1
+        if (
+            previous is not None
+            and previous[2] == key
+            # Successive beats: the gap between timestamps matches the later interval.
+            and abs((offset - previous[0]) - interval) <= max(50, 0.2 * interval)
+            and abs(interval - previous[1]) <= 0.2 * previous[1]
+        ):
+            quarter["differences"].append(interval - previous[1])
+        previous = (offset, interval, key)
+    output = []
+    for key in sorted(quarters):
+        quarter = quarters[key]
+        differences = quarter["differences"]
+        output.append(
+            {
+                "startMs": base + key * 900_000,
+                "samples": quarter["samples"],
+                "validIntervals": quarter["valid"],
+                "pairs": len(differences),
+                "rmssdMs": round(math.sqrt(sum(d * d for d in differences) / len(differences)), 1)
+                if len(differences) >= PPI_MIN_PAIRS
+                else None,
+            }
+        )
+    return output
+
+
+CHECKIN_RANGES = {"workout_rpe": (1, 10), "day_condition": (1, 5)}
+
+
+def _checkins(day: date, root: dict[str, Any], diagnostics: dict[str, Any]) -> list[dict[str, Any]]:
+    entries: dict[tuple[str, str], dict[str, Any]] = {}
+    for raw in _list(root.get("checkins")):
+        raw = _object(raw)
+        diagnostics["raw_samples"] += 1
+        kind = raw.get("type")
+        bounds = CHECKIN_RANGES.get(kind) if isinstance(kind, str) else None
+        value = _number(raw.get("value"), *bounds) if bounds else None
+        target = raw.get("workoutId") if kind == "workout_rpe" else day.isoformat()
+        if value is None or not value.is_integer() or not isinstance(target, str) or not 1 <= len(target) <= 64:
+            diagnostics["rejected_samples"] += 1
+            continue
+        diagnostics["days"] = 1
+        assert isinstance(kind, str)  # bounds exist only for known string kinds.
+        entries[(kind, target)] = {"type": kind, "date": day.isoformat(), "target": target, "value": int(value)}
+    return list(entries.values())

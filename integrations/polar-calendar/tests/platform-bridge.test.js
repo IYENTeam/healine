@@ -43,6 +43,7 @@ test('provider failure is delivered with its status and does not skip other reso
   assert.equal(batches[3].kind, 'recovery');
   assert.equal(batches[4].kind, 'workout');
   assert.ok(calls[2].includes('features=sleep-result&features=sleep-score'));
+  assert.equal(new URL(calls[1]).searchParams.get('from'), '2026-09-17');
   assert.ok(!JSON.stringify(batches).includes('test-polar-token'));
 });
 
@@ -83,8 +84,10 @@ test('workout detail requests use one-day exclusive ranges and preserve every re
   c.fetchPolarWithToken_=url=>{calls.push(new URL(url));return {getResponseCode:()=>200,getContentText:()=>'{"trainingSessions":[]}'};};
   c.platformRequest_=()=>({status:'empty'});
   c.syncPlatformRange_('2026-09-17','2026-09-19',['workout']);
-  assert.equal(calls.length,2);assert.equal(calls[0].searchParams.get('to'),'2026-09-18');
-  assert.equal(calls[1].searchParams.get('from'),'2026-09-18');
+  assert.equal(calls.length,2);assert.equal(calls[0].searchParams.get('to'),'2026-09-18T00:00:00');
+  assert.equal(calls[0].searchParams.get('from'),'2026-09-17T00:00:00');
+  assert.equal(calls[1].searchParams.get('from'),'2026-09-18T00:00:00');
+  assert.equal(calls[1].searchParams.get('to'),'2026-09-19T00:00:00');
   assert.ok(calls[0].searchParams.getAll('features').includes('samples'));
   assert.ok(calls[0].searchParams.getAll('features').includes('training-load-report'));
 });

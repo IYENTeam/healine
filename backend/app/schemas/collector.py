@@ -5,7 +5,20 @@ from uuid import UUID
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
-CollectorKind = Literal["heart_rate", "activity", "sleep", "recovery", "workout"]
+CollectorKind = Literal[
+    "heart_rate",
+    "activity",
+    "sleep",
+    "recovery",
+    "workout",
+    "test",
+    "skin_contact",
+    "temperature",
+    "ppi",
+    "checkin",
+]
+# Optional kinds need separately granted Polar scopes (or user notes) and never block core collection.
+OPTIONAL_COLLECTOR_KINDS = ("workout", "test", "skin_contact", "temperature", "ppi")
 
 
 class CollectorDelivery(BaseModel):

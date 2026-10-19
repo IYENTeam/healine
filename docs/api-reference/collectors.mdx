@@ -37,7 +37,7 @@ All fields below are required. Additional fields are rejected.
 
 | Field | Type | Meaning |
 | --- | --- | --- |
-| `kind` | string | `heart_rate`, `activity`, `sleep`, `recovery`, or `workout` |
+| `kind` | string | `heart_rate`, `activity`, `sleep`, `recovery`, `workout`, `test`, `skin_contact`, `temperature`, `ppi`, or `checkin` |
 | `date` | ISO date | Requested source day; daily observations use Asia/Seoul, training sessions retain the provider's local time and offset |
 | `fetched_at` | Offset-aware ISO datetime | Retrieval time, no more than five minutes in the future |
 | `http_status` | Integer, 100–599 | Original Polar status, including errors |

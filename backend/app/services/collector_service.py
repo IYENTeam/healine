@@ -12,7 +12,13 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.models import CollectorBatch, CollectorConnection, EventRecord, HealthScore, SleepDetails, WorkoutDetails
 from app.repositories.collector_repository import collector_repository as repository
-from app.schemas.collector import CollectorDelivery, CollectorPaired, CollectorPairingCreated, CollectorStatus
+from app.schemas.collector import (
+    OPTIONAL_COLLECTOR_KINDS,
+    CollectorDelivery,
+    CollectorPaired,
+    CollectorPairingCreated,
+    CollectorStatus,
+)
 from app.schemas.enums import HealthScoreCategory, ProviderName, SeriesType
 from app.schemas.model_crud.activities import TimeSeriesSampleCreate
 from app.services.providers.polar.collector import (
@@ -21,6 +27,14 @@ from app.services.providers.polar.collector import (
     CollectorSchemaError,
     empty_observations,
     normalize_polar_response,
+)
+from app.services.providers.polar.insights import (
+    HISTORY_DAYS,
+    TRAINING_WINDOW_DAYS,
+    nights_by_date,
+    temperature_nights,
+    training_day,
+    workout_responses,
 )
 from app.services.timeseries_service import timeseries_service
 from app.utils.security import hash_api_key
@@ -170,6 +184,9 @@ class CollectorService:
                         is_daily_total=False,
                     )
                 )
+        for sample in data.get("temperatureSamples", []):
+            if sample["type"] == "skin":
+                samples.append(self._sample(connection, sample["timestampMs"], sample["celsius"], "skin_temperature"))
         timeseries_service.bulk_create_samples(db, samples)
         source = repository.data_source(db, connection.user_id)
         for workout in data["workouts"]:
@@ -234,6 +251,7 @@ class CollectorService:
                     ),
                 )
         for night in data["nightlyRecharges"]:
+            self._save_nightly_rmssd(db, connection, source.id, night)
             value = night.get("recoveryIndicator")
             if isinstance(value, (int, float)) and not isinstance(value, bool) and 1 <= value <= 6:
                 components = {}
@@ -260,6 +278,37 @@ class CollectorService:
                         components=components or None,
                     ),
                 )
+
+    @staticmethod
+    def _sample(
+        connection: CollectorConnection, timestamp_ms: int, value: float, series: str
+    ) -> TimeSeriesSampleCreate:
+        return TimeSeriesSampleCreate(
+            id=uuid4(),
+            user_id=connection.user_id,
+            provider="polar",
+            source="polar_accesslink_v4",
+            recorded_at=datetime.fromtimestamp(timestamp_ms / 1000, UTC),
+            zone_offset="+09:00",
+            value=value,
+            series_type=SeriesType(series),
+            is_daily_total=False,
+        )
+
+    def _save_nightly_rmssd(
+        self, db: Session, connection: CollectorConnection, source_id: UUID, night: dict[str, Any]
+    ) -> None:
+        # Polar reports one nightly RMSSD for roughly 0.5-4.5 h after sleep onset. Store it once,
+        # inside that recorded sleep, so the shared sleep-filtered HRV scores can use it.
+        rmssd = night.get("meanNightlyRecoveryRmssd")
+        record = repository.sleep_record(db, source_id, "polar-v4-sleep-" + night["sleepResultDate"])
+        if not isinstance(rmssd, (int, float)) or isinstance(rmssd, bool) or rmssd <= 0 or record is None:
+            return
+        offset = min(timedelta(hours=2, minutes=30), (record.end_datetime - record.start_datetime) / 2)
+        stamp = int((record.start_datetime + offset).timestamp() * 1000)
+        timeseries_service.bulk_create_samples(
+            db, [self._sample(connection, stamp, rmssd, "heart_rate_variability_rmssd")]
+        )
 
     @staticmethod
     def _zones(zones: list[dict[str, Any]], kind: str, maximum_key: str) -> dict[str, Any] | None:
@@ -293,16 +342,20 @@ class CollectorService:
             raise HTTPException(422, "Request between 1 and 15 days; end date is exclusive")
         result = empty_observations()
         rehydrated_diagnostics: dict[UUID, dict[str, Any]] = {}
+        latest = repository.observations(db, connection.id, start, end, successful=False)
+        latest_status = {(b.date, b.kind): b.status for b in latest}
         for batch in repository.observations(db, connection.id, start, end, successful=True):
+            # Notes removed by the user must disappear, so check-ins never fall back to older snapshots.
+            if batch.kind == "checkin" and latest_status.get((batch.date, batch.kind)) != "processed":
+                continue
             # Enrich old successful snapshots from their retained source. This also
             # works when a newer empty/error batch makes the snapshot a fallback.
             normalized = batch.normalized
-            if batch.kind in ("sleep", "recovery"):
+            if batch.kind in ("sleep", "recovery", "workout"):
                 normalized, diagnostics = normalize_polar_response(batch.kind, batch.date, batch.payload)
                 rehydrated_diagnostics[batch.id] = diagnostics
             for key in OBSERVATION_KEYS:
                 result[key].extend(normalized.get(key, []))
-        latest = repository.observations(db, connection.id, start, end, successful=False)
         result["diagnostics"] = [
             {
                 "date": b.date.isoformat(),
@@ -322,22 +375,82 @@ class CollectorService:
             if any(b.http_status != 200 for b in sleep_batches)
             else "granted"
         )
-        workout_batches = [b for b in latest if b.kind == "workout"]
-        result["workoutAccess"] = (
-            "needs_connection"
-            if any(b.http_status == 403 for b in workout_batches)
-            else "error"
-            if any(b.status not in ("processed", "empty") for b in workout_batches)
-            else "granted"
-            if workout_batches
-            else "unknown"
-        )
+        result["access"] = {
+            kind: self._access([b for b in latest if b.kind == kind]) for kind in OPTIONAL_COLLECTOR_KINDS
+        }
+        result["workoutAccess"] = result["access"]["workout"]
         # A session can be returned by adjacent source dates; never count it twice.
-        result["workouts"] = list(
-            {w["id"]: w for w in sorted(result["workouts"], key=lambda w: str(w.get("modifiedAt") or ""))}.values()
-        )
+        result["workouts"] = self._unique_workouts(result["workouts"])
+        self._add_insights(db, connection, start, end, result)
         result["source"] = "healine-platform"
         return result
+
+    @staticmethod
+    def _access(batches: list[CollectorBatch]) -> str:
+        if any(b.http_status == 403 for b in batches):
+            return "needs_connection"
+        if any(b.status not in ("processed", "empty") for b in batches):
+            return "error"
+        return "granted" if batches else "unknown"
+
+    @staticmethod
+    def _unique_workouts(workouts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        ordered = sorted(workouts, key=lambda w: str(w.get("modifiedAt") or ""))
+        return sorted({w["id"]: w for w in ordered}.values(), key=lambda w: w["startMs"])
+
+    def _add_insights(
+        self, db: Session, connection: CollectorConnection, start: date, end: date, result: dict[str, Any]
+    ) -> None:
+        history: dict[str, list[dict[str, Any]]] = {
+            "workouts": [],
+            "sleeps": [],
+            "nightlyRecharges": [],
+            "temperatureSamples": [],
+        }
+        # Include the night that follows the last requested date.
+        for batch in repository.observations(
+            db,
+            connection.id,
+            start - timedelta(days=HISTORY_DAYS),
+            end + timedelta(days=1),
+            successful=True,
+            kinds=("workout", "sleep", "recovery", "temperature"),
+        ):
+            normalized, _ = normalize_polar_response(batch.kind, batch.date, batch.payload)
+            for key in history:
+                history[key].extend(normalized.get(key, []))
+        workouts = self._unique_workouts(history["workouts"])
+        sleeps = list({sleep["date"]: sleep for sleep in history["sleeps"]}.values())
+        nights = nights_by_date(history["nightlyRecharges"])
+        covered = {
+            b.date
+            for b in repository.observations(
+                db,
+                connection.id,
+                start - timedelta(days=TRAINING_WINDOW_DAYS),
+                end,
+                successful=False,
+                kinds=("workout",),
+            )
+            if b.status in ("processed", "empty")
+        }
+        dates = [start + timedelta(days=offset) for offset in range((end - start).days)]
+        result["training"] = [training_day(day, workouts, covered, sleeps, nights) for day in dates]
+        result["workoutResponses"] = workout_responses(result["workouts"], workouts, sleeps, nights)
+        result["temperatureNights"] = temperature_nights(dates, history["temperatureSamples"], sleeps)
+        result["resilience"] = [
+            self._resilience(score) for score in repository.resilience_scores(db, connection.user_id, start, end)
+        ]
+
+    @staticmethod
+    def _resilience(score: HealthScore) -> dict[str, Any]:
+        components = score.components if isinstance(score.components, dict) else {}
+        return {
+            "date": score.recorded_at.date().isoformat(),
+            "hrvCv": float(score.value) if score.value is not None else None,
+            "score": (components.get("resilience_score") or {}).get("value"),
+            "daysCounted": (components.get("days_counted") or {}).get("value"),
+        }
 
     def replay(self, db: Session, user_id: UUID, batch_id: UUID) -> CollectorBatch:
         connection = repository.connection_for_user(db, user_id)

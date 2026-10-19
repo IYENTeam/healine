@@ -29,12 +29,13 @@ function upsertManagedEvent_(calendar, events, spec) {
     var previous = event ? event.getDescription() : '';
     var markerIndex = previous.indexOf(marker);
     notes = marker + (markerIndex >= 0
-      ? previous.slice(markerIndex + marker.length) : '몸 상태·카페인·운동·업무 상황을 적어두면 기록과 비교할 수 있습니다.');
+      ? previous.slice(markerIndex + marker.length) : '몸 상태·카페인·운동·업무 상황을 적어두면 기록과 비교할 수 있습니다.' +
+        (spec.checkinHint ? '\n숫자 기록: ' + spec.checkinHint : ''));
   }
   // Calendar can silently truncate long descriptions. Keep the data block and
   // notes whole; shorten only generated prose, before making any mutation.
   if (spec.description.length + notes.length > 8000 && spec.compactDescription) {
-    spec.description = spec.compactDescription();
+    spec.description = spec.compactDescription(notes.length);
   }
   spec.description += notes;
   if (spec.description.length > 8000) {
@@ -129,6 +130,10 @@ function hourlyDescription_(hour) {
       ' · MET 2 이상 관측 ' + (row.metMinutes ? row.activeMinutes + '분' : '미수신'));
     lines.push('  활동 기록 ' + row.metMinutes + '/15분 · 걸음 ' +
       (row.steps === null ? '미수신' : row.steps + '보') + ' (걸음 기록 ' + row.stepMinutes + '/15분)');
+    if (row.wear) lines.push('  착용(피부 접촉) ' + row.wear.contactMinutes + '분 · 미착용 ' + row.wear.noContactMinutes +
+      '분 · 확인 불가 ' + row.wear.unknownMinutes + '분');
+    if (row.ppi) lines.push('  박동 간격(PPI) 유효 ' + row.ppi.validIntervals + '개' +
+      (row.ppi.rmssdMs !== null ? ' · RMSSD ' + row.ppi.rmssdMs + ' ms' : ' · HRV 계산에는 부족'));
   });
   lines.push('', '심박만으로 긴장·감정·질환의 원인을 구분하지 않습니다. 수면 회복 수치는 낮 심박에 가산하지 않습니다.',
     '아래 분석용 기록에는 관측 샘플을 시각별로 묶은 1분 집계가 있습니다. 누락된 분은 관측값이 없는 분입니다.' +
@@ -147,9 +152,15 @@ function upsertHealineDay_(calendar, events, summary) {
   return upsertManagedEvent_(calendar, events, {
     tag: 'healineDay', key: summary.date, allDay: true, startMs: localDayStartMs_(summary.date),
     title: title, description: dailyDescription_(summary), notes: true,
-    compactDescription: function () { return 'Healine · ' + summary.date + ' 하루 요약\n' + summary.guidance +
-      '\n자세한 측정값은 아래 분석 데이터와 시간대별 기록을 확인하세요.\n' +
-      calendarDataBlock_(dailyCalendarData_(summary)) + '\n[healine-day:' + summary.date + ']'; },
+    checkinHint: '다음 줄에 "컨디션 3"처럼 1~5로 적으면 체감 컨디션으로 저장합니다 (5가 가장 좋음).',
+    compactDescription: function (notesLength) {
+      var tail = '\n자세한 측정값은 아래 분석 데이터와 시간대별 기록을 확인하세요.\n' +
+        calendarDataBlock_(dailyCalendarData_(summary)) + '\n[healine-day:' + summary.date + ']';
+      var head = 'Healine · ' + summary.date + ' 하루 요약\n' + summary.guidance;
+      // Keep the short training and measurement lines when they still fit with the notes.
+      var extra = trainingLines_(summary).concat(measurementLines_(summary)).join('\n');
+      return head.length + extra.length + tail.length + (notesLength || 0) <= 8000 ? head + extra + tail : head + tail;
+    },
     color: summary.recoveryIndicator === null ? CalendarApp.EventColor.GRAY :
       summary.recoveryIndicator <= 3 ? CalendarApp.EventColor.ORANGE : CalendarApp.EventColor.GREEN
   });
@@ -165,6 +176,9 @@ function workoutCalendarData_(workout, compact) {
     heartRate: { avgBpm: workout.heartRateAvgBpm, minBpm: workout.heartRateMinBpm, maxBpm: workout.heartRateMaxBpm },
     trainingLoad: workout.trainingLoad, polarTrainingLoad: workout.polarTrainingLoad,
     trainingBenefit: workout.trainingBenefit, recoveryTimeSeconds: workout.recoveryTimeSeconds,
+    polarFeeling0To1: workout.feeling === undefined ? null : workout.feeling,
+    ownerRpe1To10: workout.checkinRpe || null,
+    nextNight: workout.nextNight || null,
     exerciseCount: (workout.exercises || []).length,
     detailStorage: 'healine_platform_raw_collector_response',
     modifiedAt: workout.modifiedAt,
@@ -193,11 +207,36 @@ function workoutDescription_(workout, compact) {
     lines.push('Polar 심장 부하: ' + workout.trainingLoad.cardioLoad +
       ' · ' + (workout.trainingLoad.cardioLoadInterpretation || '해석 미수신'));
   }
+  if (workout.sport && workout.sport.catalogResolved === false) {
+    lines.push('종목 이름을 확인하지 못했습니다. Polar 종목 목록 조회가 되면 다음 갱신에서 바뀝니다.');
+  }
+  var effort = [];
+  if (workout.checkinRpe) effort.push('내 체감 RPE ' + workout.checkinRpe + '/10');
+  if (workout.trainingLoad && workout.trainingLoad.sessionRpe) effort.push('Polar 세션 RPE ' + workout.trainingLoad.sessionRpe);
+  if (validNumber_(workout.feeling) !== null) effort.push('Polar 체감 값 ' + round_(workout.feeling, 2) + ' (0~1, Polar 제공값)');
+  lines.push(effort.length ? '체감 기록: ' + effort.join(' · ') : '체감 기록: 없음 · 메모에 "RPE 7"처럼 적을 수 있습니다.');
+  lines.push(nextNightText_(workout.nextNight));
   lines.push('훈련 부하는 운동량 지표입니다. 심리적 스트레스 점수로 해석하지 않습니다.',
     '랩·심박 구간·샘플·근력 세트의 제공된 원본은 Healine에 보관합니다.',
     compact ? '캘린더 길이 제한으로 세부 종목 정보는 원본 저장소에 보존합니다.' : '',
     calendarDataBlock_(workoutCalendarData_(workout, compact)), '[healine-workout:' + workout.id + ']');
   return lines.filter(function (line) { return line !== ''; }).join('\n');
+}
+
+function nextNightText_(response) {
+  if (!response) return '다음 밤 회복: Healine 비교 자료를 아직 받지 못했습니다.';
+  var c = response.comparison, prefix = '다음 밤 회복 (' + response.night + ' 기상): ';
+  if (!c) return prefix + '아직 수신 전입니다.';
+  var parts = [];
+  if (c.rmssdMs) parts.push('HRV ' + c.rmssdMs + ' ms' + (c.rmssdChangePercent !== null ? ' (이전 ' + c.referenceNights +
+    '밤 중앙값 대비 ' + signed_(c.rmssdChangePercent) + '%)' : ''));
+  if (c.heartRateFromRriBpm) parts.push('환산 심박 ' + c.heartRateFromRriBpm + ' bpm' +
+    (c.heartRateChangeBpm !== null ? ' (' + signed_(c.heartRateChangeBpm) + ')' : ''));
+  if (c.ansRate) parts.push('ANS ' + c.ansRate + '/5');
+  var text = prefix + (parts.join(' · ') || '야간 지표 미수신');
+  if (c.rmssdChangePercent === null) text += ' · 이전 밤 5개 이상이 모이면 비교';
+  if ((response.sharedWithWorkouts || []).length) text += ' · 같은 밤 전 다른 운동 ' + response.sharedWithWorkouts.length + '회와 구분하지 않음';
+  return text + ' · 한 번의 변화는 운동 때문이라고 단정할 수 없습니다.';
 }
 
 function upsertHealineWorkout_(calendar, events, workout) {
@@ -215,6 +254,7 @@ function upsertHealineWorkout_(calendar, events, workout) {
     tag: 'healineWorkout', key: workout.id, startMs: workout.startMs, endMs: workout.endMs,
     title: title, description: workoutDescription_(workout, false),
     compactDescription: function () { return workoutDescription_(workout, true); },
+    checkinHint: '다음 줄에 "RPE 7"처럼 1~10으로 적으면 운동 체감 강도로 저장합니다 (10이 최대).',
     notes: true, color: CalendarApp.EventColor.MAUVE
   });
   props.setProperty(property, event.getId());
@@ -286,6 +326,8 @@ function dailyDescription_(summary) {
       summary.workoutAccess === 'error' ? '운동 조회 실패 · 기존 기록은 유지됩니다.' :
       summary.workoutAccess === 'granted' ? 'Polar에서 반환한 운동 기록이 없습니다.' : '운동 수신 여부를 아직 확인하지 못했습니다.');
   }
+  lines = lines.concat(trainingLines_(summary), measurementLines_(summary));
+  if (summary.checkin) lines.push('', '내 체크인', '컨디션 ' + summary.checkin.value + '/5 (메모 기록)');
   var hours = (summary.hours || []).filter(hasHourlyObservations_);
   if (hours.length) {
     lines.push('', '시간대별 흐름', '심박은 각 시간대의 15분 중앙값들을 요약한 값이며, 범위는 관측 최소–최대입니다.');
@@ -322,6 +364,64 @@ function dailyDescription_(summary) {
   return lines.join('\n');
 }
 
+function minutesText_(seconds) {
+  var minutes = Math.round(seconds / 60);
+  return (minutes >= 60 ? Math.floor(minutes / 60) + '시간 ' : '') + minutes % 60 + '분';
+}
+
+function trainingLines_(summary) {
+  var t = summary.training, r = summary.resilience;
+  if (!t && !r) return [];
+  var lines = ['', '훈련 부하와 회복 (내 기록 비교 · 진단 아님)'];
+  if (t) {
+    lines.push('최근 7일 운동 ' + t.sessions7 + '회 · ' + minutesText_(t.durationSeconds7) + ' · Polar 심장 부하 합 ' +
+      (t.cardioLoad7 === null ? '계산 보류' : t.cardioLoad7) + ' (운동 조회 확인 ' + t.workoutCollectionCoveredDays7 + '/7일)');
+    lines.push(t.cardioLoad28WeeklyAverage === null
+      ? '28일 주평균 부하: 운동 조회 확인 ' + t.workoutCollectionCoveredDays28 + '/28일 · 24일 이상 확인되면 계산'
+      : '28일 주평균 부하 ' + t.cardioLoad28WeeklyAverage + (t.acuteToWeeklyAverageRatio === null ? '' :
+        ' · 최근 7일은 주평균의 ' + t.acuteToWeeklyAverageRatio + '배'));
+    if (t.heartRateZones7.length) lines.push('7일 심박 구간 시간: ' + t.heartRateZones7.map(function (z) {
+      return z.lowerBpm + '–' + z.upperBpm + ' bpm ' + minutesText_(z.seconds);
+    }).join(' · '));
+    var after = t.nightRmssdChange28.afterWorkout, without = t.nightRmssdChange28.withoutWorkout;
+    lines.push('28일 야간 HRV 변화 중앙값: 운동 후 밤 ' +
+      (after.medianPercent === null ? '비교 부족' : signed_(after.medianPercent) + '%') + ' (' + after.nights + '밤) · 운동 없는 밤 ' +
+      (without.medianPercent === null ? '비교 부족' : signed_(without.medianPercent) + '%') + ' (' + without.nights + '밤)');
+  }
+  if (r && r.hrvCv !== null) lines.push('야간 HRV 7일 변동계수 ' + round_(r.hrvCv * 100, 1) + '%' +
+    (r.score !== null && r.score !== undefined ? ' · Healine 회복 탄력성 ' + r.score + '/100' : '') + ' (낮을수록 밤마다 일정)');
+  lines.push('부하 비율과 HRV 변화는 개인 추세를 보는 값이며 부상·질환 예측이 아닙니다.');
+  return lines;
+}
+
+function testText_(test) {
+  var v = test.values || {}, l = test.labels || {}, time = clockTime_(test.startMs) + ' ';
+  if (test.type === 'orthostatic') return time + '기립 테스트 · 누운 자세 ' +
+    (v.rrAvgSupine ? round_(60000 / v.rrAvgSupine, 1) + ' bpm' : '심박 미수신') + ' / HRV ' + displayValue_(v.rmssdSupine) + ' ms · 선 자세 ' +
+    (v.rrAvgStand ? round_(60000 / v.rrAvgStand, 1) + ' bpm' : '심박 미수신') + ' / HRV ' + displayValue_(v.rmssdStand) + ' ms';
+  if (test.type === 'fitness') return time + '피트니스 테스트 · OwnIndex ' + displayValue_(v.ownIndex) +
+    ' (VO2max와 비슷한 단위) · 안정 심박 ' + displayValue_(v.averageHeartRate) + ' bpm' + (l.fitnessClass ? ' · ' + l.fitnessClass : '');
+  if (test.type === 'spo2') return time + 'SpO2 테스트 · ' + displayValue_(v.bloodOxygenPercent) + '% · ' + (l.testStatus || '상태 미수신');
+  if (test.type === 'ecg') return time + 'ECG 테스트 · 평균 심박 ' + displayValue_(v.averageHeartRateBpm) + ' bpm · HRV ' +
+    displayValue_(v.heartRateVariabilityMs) + ' ms';
+  return time + test.type + ' 결과 수신';
+}
+
+function measurementLines_(summary) {
+  var lines = [], w = summary.wear, temp = summary.temperature, ppi = summary.ppi;
+  if (w) lines.push('착용(피부 접촉) 확인 ' + minutesText_(w.contactMinutes * 60) + ' · 미착용 ' + minutesText_(w.noContactMinutes * 60) +
+    ' · 확인 불가 ' + minutesText_(w.unknownMinutes * 60) + ' (심박 미수신과 미착용을 구분)');
+  if (temp && temp.status === 'measured') lines.push('수면 중 피부 온도 중앙값 ' + temp.medianCelsius + '°C' +
+    (temp.deviationCelsius !== null ? ' · 이전 ' + temp.referenceNights + '밤 대비 ' + signed_(temp.deviationCelsius) + '°C'
+      : ' · 이전 밤 ' + temp.referenceNights + '개 (5밤부터 비교)') + ' · 손목 피부 온도는 체온이 아닙니다.');
+  (summary.tests || []).forEach(function (test) { lines.push(testText_(test)); });
+  if (ppi) lines.push('박동 간격(PPI) 기록 ' + ppi.recordedQuarters + '개 15분 구간 · HRV 계산 가능 ' + ppi.rmssdQuarters + '구간' +
+    (ppi.medianRmssdMs !== null ? ' · RMSSD 중앙값 ' + ppi.medianRmssdMs + ' ms' : '') + ' · 낮 비교 규칙은 아직 심박 기준입니다.');
+  if ((summary.missingExtendedScopes || []).length) lines.push('추가 측정 읽기 권한 필요: ' +
+    summary.missingExtendedScopes.join(', ') + ' · Healine 웹 앱의 "측정 권한 추가 화면"에서 연결하세요.');
+  return lines.length ? ['', '착용·온도·측정 테스트'].concat(lines) : [];
+}
+
 function hasHourlyObservations_(hour) {
   return hour.heartRateSampleCount > 0 || hour.steps !== null || hour.activityMinutes > 0;
 }
@@ -336,6 +436,9 @@ function hourlyCalendarData_(hour) {
     provider: 'polar-accesslink-v4', storage: hour.source || 'apps-script',
     start: isoTimestamp_(hour.startMs), end: isoTimestamp_(hour.endMs),
     dataState: hasHourlyObservations_(hour) ? 'observed' : 'no_observations_in_latest_snapshot',
+    // Hour-level sums keep dense hours within Calendar's description limit; absent keys mean no data.
+    wearMinutes: hour.wear || undefined,
+    ppi: summarizePpi_(hour.windows) || undefined,
     nullMeaning: 'unreceived_or_not_comparable',
     minuteAggregation: 'observed_samples_grouped_by_timestamp; absent_rows_have_no_samples; no_interpolation',
     minuteColumns: ['at', 'hr_median_bpm', 'hr_min_bpm', 'hr_max_bpm', 'hr_samples',
@@ -386,6 +489,14 @@ function dailyCalendarData_(summary) {
       polarComponentScoresOutOf100: sleep.scores || null } : null,
     syncWarning: summary.syncWarning || null,
     overnightPersonalComparison: summary.nightComparison || null,
+    training: summary.training || null,
+    resilience: summary.resilience || null,
+    skinTemperature: summary.temperature || null,
+    tests: summary.tests || [],
+    wear: summary.wear || null,
+    ppi: summary.ppi || null,
+    ownerCondition1To5: summary.checkin ? summary.checkin.value : null,
+    missingExtendedScopes: summary.missingExtendedScopes || [],
     daytimeComparison: { eligibleQuarters: summary.comparisonEligibleWindows || 0,
       comparedQuarters: summary.comparedWindows || 0, method: 'activity_context_v3' },
     sleepAccess: summary.sleepAccess || 'unknown',

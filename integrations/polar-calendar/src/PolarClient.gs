@@ -249,16 +249,32 @@ function syncPlatformRange_(from, to, kinds) {
       { kind: 'sleep', path: '/sleeps', features: ['sleep-result', 'sleep-score'] },
       { kind: 'recovery', path: '/nightly-recharge-results' },
       { kind: 'workout', path: '/training-sessions/list',
-        features: ['samples', 'statistics', 'zones', 'training-load-report', 'laps', 'pause-times', 'strength-training-results'] }
+        features: ['samples', 'statistics', 'zones', 'training-load-report', 'laps', 'pause-times', 'strength-training-results'] },
+      // Added measurements: requested only after their scope was explicitly granted and never
+      // allowed to hold back the core resources' completion.
+      { kind: 'test', path: '/tests/list', scope: 'tests:read' },
+      { kind: 'skin_contact', path: '/skin-contacts', scope: 'skin_contact:read' },
+      { kind: 'temperature', path: '/temperature-measurements', scope: 'temperature_measurement:read' },
+      { kind: 'ppi', path: '/ppi-samples', features: 'samples', scope: 'ppi_data:read' }
     ].forEach(function (request) {
       if (kinds && kinds.indexOf(request.kind) < 0) return;
       if (request.kind === 'workout' && getWorkoutAccess_() === 'needs_connection') return;
+      if (request.scope && !hasGrantedPolarScope_(request.scope)) return;
       var query = { from: date, to: addIsoDays_(date, 1) };
+      // Training sessions require local ISO datetimes, not date-only values.
+      // Keep the provider-local day and its exclusive next-midnight boundary.
+      if (request.kind === 'workout') {
+        query.from += 'T00:00:00';
+        query.to += 'T00:00:00';
+      }
       if (request.features) query.features = request.features;
-      var url = HEALINE.apiBaseUrl + request.path + '?' + encodeQuery_(query);
-      var accessToken = getValidPolarAccessToken_();
-      var response = fetchPolarWithToken_(url, accessToken);
-      if (response.getResponseCode() === 401) response = fetchPolarWithToken_(url, refreshPolarToken_(accessToken));
+      var response = fetchPolarSource_(request.path, query);
+      if (request.scope && response.getResponseCode() === 400 && /datetime/i.test(response.getContentText() || '')) {
+        // Same contract wording as training sessions, which reject date-only values.
+        query.from += 'T00:00:00';
+        query.to += 'T00:00:00';
+        response = fetchPolarSource_(request.path, query);
+      }
       var body;
       try { body = JSON.parse(response.getContentText() || '{}'); }
       catch (ignored) { body = { responseFormat: 'non-json' }; }
@@ -268,21 +284,63 @@ function syncPlatformRange_(from, to, kinds) {
           httpStatus === 403 ? 'needs_connection' : httpStatus === 200 ? 'granted' : 'error');
         if (httpStatus === 200) body = enrichWorkoutSports_(body);
       }
+      if (request.kind === 'ppi' && httpStatus === 200) body = compactPpiResponse_(body);
       // Resource responses only. OAuth credentials never leave Apps Script.
       var batch = platformRequest_('/batches', {
         kind: request.kind, date: date, fetched_at: new Date().toISOString(),
         http_status: httpStatus, payload: body
       });
-      if (batch.status === 'processing_error' || batch.status === 'pending') {
+      if (!request.scope && (batch.status === 'processing_error' || batch.status === 'pending')) {
         throw new Error('Healine에 원본을 저장했지만 처리 중입니다. 다음 실행에서 다시 확인합니다.');
       }
       // Missing optional workout consent must not stop the already-authorized resources.
       if (request.kind === 'workout' && httpStatus === 403) return;
+      if (request.scope) return;
       if (['processed', 'empty'].indexOf(batch.status) < 0 &&
           (request.kind === 'workout' || httpStatus !== 404)) complete = false;
     });
   });
   return { complete: complete };
+}
+
+function fetchPolarSource_(path, query) {
+  var url = HEALINE.apiBaseUrl + path + '?' + encodeQuery_(query);
+  var accessToken = getValidPolarAccessToken_();
+  var response = fetchPolarWithToken_(url, accessToken);
+  if (response.getResponseCode() === 401) response = fetchPolarWithToken_(url, refreshPolarToken_(accessToken));
+  return response;
+}
+
+function hasGrantedPolarScope_(scope) {
+  var scopes = PropertiesService.getUserProperties().getProperty(HEALINE.propertyKeys.grantedScopes);
+  return Boolean(scopes) && scopes.split(/\s+/).indexOf(scope) >= 0;
+}
+
+function missingExtendedScopes_() {
+  return HEALINE.extendedScopes.filter(function (scope) { return !hasGrantedPolarScope_(scope); });
+}
+
+// A PPI day can hold tens of thousands of beats. Columns keep every sample's offset, interval,
+// error estimate and skin-contact/movement/offline flags (1/2/4; absent flags count as false)
+// within the platform's delivery size limit.
+function compactPpiResponse_(body) {
+  var root = body.data || body;
+  if (!Array.isArray(root.dailyPpiSamples)) return body;
+  return { healinePpiColumns: { version: 1, days: root.dailyPpiSamples.map(function (day) {
+    return { date: day.date, modified: day.modified || null, devices: (day.ppiSamplesPerDevice || []).map(function (device) {
+      var columns = { recordingDevice: device.recordingDevice || null,
+        recordingTriggerTypeChanges: device.recordingTriggerTypeChanges || [],
+        offsetMillis: [], ppInterval: [], errorEstimateMillis: [], flags: [] };
+      (device.ppiSamples || []).forEach(function (sample) {
+        columns.offsetMillis.push(sample.offsetMillis);
+        columns.ppInterval.push(sample.ppInterval);
+        columns.errorEstimateMillis.push(sample.errorEstimateMillis);
+        columns.flags.push((sample.skinContact === true ? 1 : 0) | (sample.movement === true ? 2 : 0) |
+          (sample.offline === true ? 4 : 0));
+      });
+      return columns;
+    }) };
+  }) } };
 }
 
 function getWorkoutAccess_() {
@@ -296,23 +354,32 @@ function enrichWorkoutSports_(body) {
   var root = body.data || body;
   if (!Array.isArray(root.trainingSessions) || !root.trainingSessions.length) return body;
   var scopes = PropertiesService.getUserProperties().getProperty(HEALINE.propertyKeys.grantedScopes);
-  if (scopes && scopes.split(/\s+/).indexOf('sports:read') < 0) return body;
+  // The status explains a missing sport name in the retained response.
+  if (scopes && scopes.split(/\s+/).indexOf('sports:read') < 0) { root.healineSportCatalogStatus = 'no_scope'; return body; }
   try {
     var cache = CacheService.getScriptCache(), cached = cache.get('healine_sports_v1');
     var catalog = cached ? JSON.parse(cached) : null;
     if (!catalog) {
       var response = polarGet_('/sports/list', {}, { allowForbidden: true });
-      if (response.healineForbidden) return body;
-      var sports = (response.data || response).sports;
-      if (!Array.isArray(sports)) throw new Error('운동 종목 응답 형식 확인 필요');
-      var names = {}; sports.forEach(function (s) { names[(s.id || {}).id] = s.name; });
+      if (response.healineForbidden) { root.healineSportCatalogStatus = 'forbidden'; return body; }
+      // The live gateway's shape differs from the published contract; accept the known wrappers.
+      var raw = response.data !== undefined ? response.data : response;
+      var sports = Array.isArray(raw) ? raw : raw && Array.isArray(raw.sports) ? raw.sports :
+        raw && raw.data && Array.isArray(raw.data.sports) ? raw.data.sports : null;
+      if (!sports) {
+        throw new Error('운동 종목 응답 형식 확인 필요 (keys: ' +
+          Object.keys(raw && typeof raw === 'object' ? raw : {}).slice(0, 8).join(',') + ')');
+      }
+      var idOf = function (ref) { return ref && typeof ref === 'object' ? ref.id : ref; };
+      var names = {}; sports.forEach(function (s) { names[idOf(s.id)] = s.name; });
       catalog = {};
       sports.forEach(function (s) {
         var labels = s.localizedNames || {};
-        catalog[(s.id || {}).id] = { name: s.name, parentName: names[(s.parentSport || {}).id],
+        catalog[idOf(s.id)] = { name: s.name, parentName: names[idOf(s.parentSport)],
           label: (labels.ko || labels['ko-KR'] || labels.en || {}).longName || s.name };
       });
-      cache.put('healine_sports_v1', JSON.stringify(catalog), 21600);
+      try { cache.put('healine_sports_v1', JSON.stringify(catalog), 21600); }
+      catch (cacheError) { console.warn('운동 종목 목록 캐시 생략: ' + cacheError.message); }
     }
     var selected = {};
     root.trainingSessions.forEach(function (session) {
@@ -323,7 +390,11 @@ function enrichWorkoutSports_(body) {
     });
     // Supplemental public catalog; the original training-session fields are retained.
     root.healineSportCatalog = selected;
-  } catch (error) { console.warn('운동 종목 이름 조회 보류. 원본 종목 ID는 보존합니다.'); }
+    root.healineSportCatalogStatus = 'ok';
+  } catch (error) {
+    root.healineSportCatalogStatus = 'error: ' + String(error.message || error).slice(0, 200);
+    console.warn('운동 종목 이름 조회 보류. 원본 종목 ID는 보존합니다.');
+  }
   return body;
 }
 

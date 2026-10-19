@@ -116,6 +116,9 @@ The paired collector also reads Polar's [v4 training sessions](https://www.polar
 four-scope connections need the owner to add these permissions through the same
 Polar connect page. This is an added data permission, not a refresh-token repair.
 Missing workout permission does not stop heart rate, activity, sleep or recovery.
+Workout range parameters use local ISO datetimes (`YYYY-MM-DDT00:00:00`)
+with an exclusive next-midnight end. The live training-session API rejects
+date-only range values with HTTP 400; other resource date ranges stay unchanged.
 Inspect `workoutAccess`; `unknown`, `needs_connection`, `error` and `granted`
 remain distinct. Successful new authorization clears the workout access block
 and schedules the latest 30 days for collection.
@@ -139,6 +142,49 @@ heart-rate comparison and its baseline. The 30-minute display rule is not a
 claim that physiological recovery is complete then. Workout metrics are not
 added to overlapping daily activity totals. See the
 [collector workout contract](/api-reference/collectors#workout-sessions).
+
+When the retained response has no sport catalog, the workout label is
+`종목 미확인 (Polar ID n)` with `sport.catalogResolved: false` instead of a
+fabricated `OTHER` name. The collector records `healineSportCatalogStatus`
+(`ok`, `no_scope`, `forbidden` or `error: …`) beside the catalog in the raw response.
+
+### Added measurements and check-ins
+
+The web app's `?extended=1` connect page additionally requests `tests:read`,
+`skin_contact:read`, `temperature_measurement:read` and `ppi_data:read`. The
+default connect page keeps the original scope set. Each added kind (`test`,
+`skin_contact`, `temperature`, `ppi`) is requested only when its scope appears
+in the granted token scopes, and its failures never hold back completion of the
+core kinds. PPI days are delivered in a columnar `healinePpiColumns` shape to
+stay within the 10 MiB delivery limit. Skin temperature samples are also stored
+as the shared `skin_temperature` series.
+
+Calendar notes can carry one-line check-ins: `컨디션 3` (1–5) on a daily card and
+`RPE 7` (1–10) on a workout event. The collector delivers them as `checkin`
+batches. Removing the line removes the stored check-in. A check-in is never
+replaced by an older snapshot.
+
+### Training and recovery context
+
+`GET /api/v1/collectors/observations` also returns:
+
+- `training[]`: per date, the 7-day session count, duration and Polar cardio-load
+  sum (needs 6 of 7 days of answered workout collection), the 28-day weekly
+  average (needs 24 of 28 days), the ratio, heart-rate zone time grouped by bpm
+  bounds, and median nightly RMSSD change on nights after workouts versus other
+  nights over 28 days.
+- `workoutResponses{}`: per workout, the following night (first recorded sleep
+  after the session, or a local-date rule) and its RMSSD and RRI-derived heart
+  rate compared with the median of at least five prior nights within 14 days.
+- `temperatureNights[]`: median skin temperature inside the recorded sleep
+  (at least 10 samples) and its difference from at least five prior nights.
+- `resilience[]`: shared internal HRV-CV scores. The collector stores each
+  nightly Polar RMSSD once, 2.5 hours after sleep onset (or mid-sleep if shorter),
+  as `heart_rate_variability_rmssd`, so the scheduled score task can use it.
+- `access{}`: `workout`, `test`, `skin_contact`, `temperature` and `ppi` status.
+
+These are personal descriptive comparisons. The windows and thresholds are
+display choices, not validated injury, illness or stress predictors.
 
 ### Collection diagnostics
 
@@ -227,7 +273,7 @@ sample from shared history. Calendar queries use complete stored snapshots.
 
 ## Fixed ingress for this installation
 
-The existing local installation uses `https://healine.iyendev.com`, a dedicated
+The existing local installation uses `https://healine.iyen.dev` (with `https://healine.iyendev.com` retained as a compatibility alias), a dedicated
 named Cloudflare tunnel to the collector-only ingress at `127.0.0.1:8011`.
 `COLLECTOR_PUBLIC_URL` and the collector's stored origin must agree. The operator
 function `repairHealinePlatformConnection()` checks the configured fixed origin
@@ -250,3 +296,17 @@ Read the [exact display rules](../../integrations/polar-calendar/README.md) and
 [research and SDK assessment](./polar-calendar-evidence.mdx). Verification of
 aggregation, missingness, time order and recoverability is separate from any
 validation of psychological stress detection.
+## Polar callback relay
+
+The existing collector can use `https://auth.iyen.dev/oauth/polar/callback`
+as its authorization redirect. Register that exact URL on the existing Polar
+client, then run `migratePolarRedirectToBroker()` from the owner's Apps Script
+editor. The helper verifies relay health before changing the non-secret redirect
+property. Existing tokens, calendar, deployment and triggers are preserved.
+
+The broker forwards only code/state or error/state to the fixed canonical
+Apps Script deployment; it never stores Polar credentials or exchanges codes.
+Apps Script remains responsible for expiring single-use state verification and
+token storage. For rollback, restore the canonical Apps Script web-app URL in
+both the existing Polar client and the `POLAR_REDIRECT_URI` Script Property.
+The configuration form always posts to Apps Script, never the relay.

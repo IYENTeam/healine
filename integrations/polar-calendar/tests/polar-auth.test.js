@@ -19,6 +19,20 @@ function environment() {
 }
 const response=(status,body)=>({getResponseCode:()=>status,getContentText:()=>JSON.stringify(body)});
 
+test('callback migration verifies relay health and preserves existing tokens',()=>{
+  const {context:c,properties}=environment();
+  c.PropertiesService.getScriptProperties=()=>properties;
+  properties.setProperty('POLAR_REDIRECT_URI','https://old.example/callback');
+  c.Logger={log(){}};
+  c.UrlFetchApp.fetch=()=>response(503,{ok:false});
+  assert.throws(()=>c.migratePolarRedirectToBroker());
+  assert.equal(properties.getProperty('POLAR_REDIRECT_URI'),'https://old.example/callback');
+  c.UrlFetchApp.fetch=()=>response(200,{ok:true,publicBase:'https://auth.iyen.dev',providers:{polar:'healine-relay'}});
+  assert.equal(c.migratePolarRedirectToBroker(),'https://auth.iyen.dev/oauth/polar/callback');
+  assert.equal(properties.getProperty('POLAR_ACCESS_TOKEN'),'old-access');
+  assert.equal(properties.getProperty('POLAR_REFRESH_TOKEN'),'old-refresh');
+});
+
 test('adding workout consent clears its block and schedules history without requiring an expired token',()=>{
   const {context:c,properties}=environment();
   properties.setProperties({POLAR_GRANTED_SCOPES:'sleep:read activity:read',HEALINE_WORKOUT_ACCESS:'needs_connection',
