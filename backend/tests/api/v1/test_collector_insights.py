@@ -3,6 +3,7 @@
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -113,9 +114,11 @@ def test_workout_night_response_load_and_nightly_hrv_storage(
     assert after_workout[0].recorded_at == datetime(2026, 9, 17, 17, 0, tzinfo=UTC)
 
 
+@pytest.mark.parametrize("periods_key", ["temperatureMeasurementPeriods", "temperatureMeasurementPeriod"])
 def test_skin_temperature_deviation_uses_samples_inside_recorded_sleep(
-    client: TestClient, user: User, auth_headers: dict[str, str]
+    client: TestClient, user: User, auth_headers: dict[str, str], periods_key: str
 ) -> None:
+    # Given synthetic nights shaped like the live temperature response.
     headers = connect(client, user, auth_headers)
     for offset in range(-5, 1):
         night = TODAY + timedelta(days=offset)
@@ -127,8 +130,11 @@ def test_skin_temperature_deviation_uses_samples_inside_recorded_sleep(
             "temperature",
             night,
             {
-                "temperatureMeasurementPeriod": [
+                periods_key: [
                     {
+                        "created": f"{night.isoformat()}T08:05:00Z",
+                        "modified": f"{night.isoformat()}T08:05:00Z",
+                        "deviceReference": {"deviceId": "synthetic-watch"},
                         "startTime": f"{(night - timedelta(days=1)).isoformat()}T23:00:00",
                         "stopTime": f"{night.isoformat()}T08:00:00",
                         "measurementType": "TM_SKIN_TEMPERATURE",
@@ -145,7 +151,9 @@ def test_skin_temperature_deviation_uses_samples_inside_recorded_sleep(
                 ]
             },
         )
+    # When the persisted observations are read.
     result = read(client, headers, TODAY, TODAY + timedelta(days=1))
+    # Then only in-sleep samples contribute to the nightly comparison.
     night = result["temperatureNights"][0]
     assert night["status"] == "measured"
     assert night["samples"] == 12
