@@ -125,6 +125,8 @@ def normalize_polar_response(kind: str, day: date, payload: dict[str, Any]) -> t
         "rejected_samples": 0,
         "invalid_vectors": 0,
     }
+    if kind == "temperature" and "temperatureMeasurementPeriods" not in root and "temperatureMeasurementPeriod" in root:
+        root = {**root, "temperatureMeasurementPeriods": root["temperatureMeasurementPeriod"]}
     expected_key = {
         "heart_rate": "continuousSamples",
         "activity": "activities",
@@ -133,7 +135,7 @@ def normalize_polar_response(kind: str, day: date, payload: dict[str, Any]) -> t
         "workout": "trainingSessions",
         "test": "tests",
         "skin_contact": "skinContactPeriods",
-        "temperature": "temperatureMeasurementPeriod",
+        "temperature": "temperatureMeasurementPeriods",
         "ppi": "dailyPpiSamples",
         "checkin": "checkins",
     }[kind]
@@ -557,7 +559,7 @@ TEMPERATURE_TYPES = {"TM_SKIN_TEMPERATURE": "skin", "TM_CORE_TEMPERATURE": "core
 
 def _temperatures(day: date, root: dict[str, Any], diagnostics: dict[str, Any]) -> list[dict[str, Any]]:
     samples: dict[tuple[int, str], dict[str, Any]] = {}
-    for period in _list(root.get("temperatureMeasurementPeriod")):
+    for period in _list(root.get("temperatureMeasurementPeriods")):
         period = _object(period)
         start = _timestamp(day, period.get("startTime"))
         if start is None:

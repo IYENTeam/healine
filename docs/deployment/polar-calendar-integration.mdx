@@ -198,6 +198,10 @@ directly at the root. Normalization accepts these observed forms as well as the
 wrapper objects in the published Swagger contract. Unknown nonempty structures
 still produce a parse error. The saved raw responses make it possible to repair
 and replay a shape mismatch without another authorization or provider request.
+Temperature normalization accepts the live `temperatureMeasurementPeriods` array
+and the earlier singular `temperatureMeasurementPeriod` form. Replay retained
+temperature parse errors after deploying a parser repair; empty period arrays
+remain empty dates rather than fabricated measurements.
 
 Calendar queries use the latest successful snapshot per date/type, with diagnostics
 from the latest fetch. A later empty or failed response retains earlier observations.
