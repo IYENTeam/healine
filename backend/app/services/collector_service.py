@@ -233,7 +233,17 @@ class CollectorService:
                 zone_offset="+09:00",
                 external_id="polar-v4-sleep-" + sleep["date"],
             )
-            detail = SleepDetails(record_id=record.id, sleep_time_in_bed_minutes=sleep["durationMinutes"])
+            detail = SleepDetails(
+                record_id=record.id,
+                sleep_time_in_bed_minutes=sleep["durationMinutes"],
+                sleep_total_duration_minutes=sleep["totalMinutes"],
+                sleep_deep_minutes=sleep["deepMinutes"],
+                sleep_rem_minutes=sleep["remMinutes"],
+                sleep_light_minutes=sleep["lightMinutes"],
+                sleep_awake_minutes=sleep["awakeMinutes"],
+                sleep_efficiency_score=sleep["efficiency"],
+                sleep_stages=sleep["stages"],
+            )
             saved = repository.save_sleep(db, record, detail)
             if sleep["score"] is not None:
                 repository.save_score(

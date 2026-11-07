@@ -1,13 +1,23 @@
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
+from decimal import Decimal
 from unittest.mock import patch
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import CollectorBatch, CollectorConnection, DataPointSeries, EventRecord, HealthScore, User
+from app.models import (
+    CollectorBatch,
+    CollectorConnection,
+    DataPointSeries,
+    EventRecord,
+    HealthScore,
+    SleepDetails,
+    User,
+)
 from app.services.collector_service import collector_service
-from app.services.providers.polar.collector import CollectorSchemaError
+from app.services.providers.polar.collector import CollectorSchemaError, normalize_polar_response
 from tests.factories import UserFactory
 
 BASE = "/api/v1/collectors"
@@ -196,14 +206,27 @@ def test_sleep_correction_updates_existing_event_and_score(
     client: TestClient, user: User, auth_headers: dict[str, str], db: Session
 ) -> None:
     headers = connect(client, user, auth_headers)
+    changes = [
+        {"offsetFromStart": "0s", "newState": "SLEEP_STATE_WAKE"},
+        {"offsetFromStart": "1800s", "newState": "SLEEP_STATE_NON_REM1"},
+        {"offsetFromStart": "3600s", "newState": "SLEEP_STATE_NON_REM2"},
+        {"offsetFromStart": "7200s", "newState": "SLEEP_STATE_NON_REM3"},
+        {"offsetFromStart": "10800s", "newState": "SLEEP_STATE_REM"},
+        {"offsetFromStart": "14400s", "newState": "SLEEP_STATE_NON_REM2"},
+        {"offsetFromStart": "28800s", "newState": "SLEEP_STATE_WAKE"},
+    ]
+    hypnogram = {
+        "sleepStart": "2026-09-16T23:00:00+09:00",
+        "sleepEnd": "2026-09-17T07:00:00+09:00",
+        "sleepStateChanges": changes,
+    }
+    score = {"sleepScore": 72.0, "efficiencyScore": 71.4}
     body = {
         "nightSleeps": [
             {
                 "sleepDate": DAY,
-                "sleepResult": {
-                    "hypnogram": {"sleepStart": "2026-09-16T23:00:00+09:00", "sleepEnd": "2026-09-17T07:00:00+09:00"}
-                },
-                "sleepScore": {"sleepScore": 72},
+                "sleepResult": {"hypnogram": hypnogram},
+                "sleepScore": score,
             }
         ]
     }
@@ -212,13 +235,85 @@ def test_sleep_correction_updates_existing_event_and_score(
             client.post(BASE + "/batches", headers=headers, json=delivery("sleep", body)).json()["status"]
             == "processed"
         )
-    body["nightSleeps"][0]["sleepResult"]["hypnogram"]["sleepEnd"] = "2026-09-17T07:15:00+09:00"
-    body["nightSleeps"][0]["sleepScore"]["sleepScore"] = 74
+    detail = db.scalars(select(SleepDetails)).one()
+    assert detail.sleep_total_duration_minutes == 450
+    assert detail.sleep_efficiency_score == Decimal("93.75")
+    hypnogram["sleepEnd"] = "2026-09-17T07:15:00+09:00"
+    changes[-1]["newState"] = "SLEEP_STATE_REM"
+    score["sleepScore"] = 74
     assert client.post(BASE + "/batches", headers=headers, json=delivery("sleep", body)).json()["status"] == "processed"
     assert db.scalar(select(func.count()).select_from(EventRecord)) == 1
     assert db.scalar(select(func.count()).select_from(HealthScore)) == 1
     assert float(db.scalar(select(HealthScore)).value) == 74
     assert db.scalar(select(EventRecord)).duration_seconds == 8 * 3600 + 15 * 60
+    db.refresh(detail)
+    assert detail.sleep_total_duration_minutes == 465
+    assert detail.sleep_time_in_bed_minutes == 495
+    assert detail.sleep_deep_minutes == 60
+    assert detail.sleep_rem_minutes == 75
+    assert detail.sleep_light_minutes == 330
+    assert detail.sleep_awake_minutes == 30
+    assert detail.sleep_efficiency_score == Decimal("93.94")
+    assert detail.sleep_stages is not None
+    assert detail.sleep_stages[-1] == {
+        "stage": "rem",
+        "start_time": "2026-09-17T07:00:00+09:00",
+        "end_time": "2026-09-17T07:15:00+09:00",
+    }
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        [],
+        [{"offsetFromStart": "0s", "newState": "SLEEP_STATE_UNKNOWN"}],
+        [{"offsetFromStart": "30s", "newState": "SLEEP_STATE_REM"}],
+    ],
+)
+def test_incomplete_sleep_stages_do_not_invent_aggregates(changes: list[dict[str, str]]) -> None:
+    payload = {
+        "nightSleeps": [
+            {
+                "sleepDate": DAY,
+                "sleepResult": {
+                    "hypnogram": {
+                        "sleepStart": f"{DAY}T01:00:00+09:00",
+                        "sleepEnd": f"{DAY}T02:00:00+09:00",
+                        "sleepStateChanges": changes,
+                    }
+                },
+            }
+        ],
+    }
+    result, _ = normalize_polar_response("sleep", date.fromisoformat(DAY), payload)
+    sleep = result["sleeps"][0]
+    assert sleep["totalMinutes"] is None
+    assert sleep["efficiency"] is None
+
+
+def test_sleep_terminal_transition_is_clipped_to_recorded_end() -> None:
+    payload = {
+        "nightSleeps": [
+            {
+                "sleepDate": DAY,
+                "sleepResult": {
+                    "hypnogram": {
+                        "sleepStart": f"{DAY}T01:00:00.976+09:00",
+                        "sleepEnd": f"{DAY}T01:01:30.976+09:00",
+                        "sleepStateChanges": [
+                            {"offsetFromStart": "0s", "newState": "SLEEP_STATE_REM"},
+                            {"offsetFromStart": "120s", "newState": "SLEEP_STATE_UNKNOWN"},
+                        ],
+                    }
+                },
+            }
+        ],
+    }
+    result, _ = normalize_polar_response("sleep", date.fromisoformat(DAY), payload)
+    sleep = result["sleeps"][0]
+    assert sleep["totalMinutes"] == 1
+    assert sleep["efficiency"] == 100
+    assert sleep["stages"][-1]["end_time"] == f"{DAY}T01:01:30.976000+09:00"
 
 
 def test_invalid_recovery_does_not_claim_success(

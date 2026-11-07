@@ -86,7 +86,9 @@ class CollectorRepository:
             existing.duration_seconds = record.duration_seconds
             existing_detail = db.get(SleepDetails, existing.id)
             if existing_detail:
-                existing_detail.sleep_time_in_bed_minutes = detail.sleep_time_in_bed_minutes
+                for column in SleepDetails.__table__.columns:
+                    if column.name not in ("record_id", "created_at"):
+                        setattr(existing_detail, column.name, getattr(detail, column.name))
             else:
                 detail.record_id = existing.id
                 db.add(detail)

@@ -9,7 +9,9 @@ from datetime import date, datetime, time, timedelta, timezone
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from app.constants.sleep import SleepStageType
 from app.constants.workout_types.polar import get_unified_workout_type
+from app.schemas.model_crud.activities.sleep import SleepStage
 
 SEOUL = ZoneInfo("Asia/Seoul")
 OBSERVATION_KEYS = (
@@ -79,6 +81,36 @@ def _timestamp(day: date, value: Any) -> datetime | None:
         return stamp if stamp.tzinfo else stamp.replace(tzinfo=SEOUL)
     except ValueError:
         return None
+
+
+def _sleep_stages(hypnogram: dict[str, Any], start: datetime, end: datetime) -> list[SleepStage]:
+    stages = {
+        "SLEEP_STATE_WAKE": SleepStageType.AWAKE,
+        "SLEEP_STATE_NON_REM1": SleepStageType.LIGHT,
+        "SLEEP_STATE_NON_REM2": SleepStageType.LIGHT,
+        "SLEEP_STATE_NON_REM3": SleepStageType.DEEP,
+        "SLEEP_STATE_REM": SleepStageType.REM,
+    }
+    changes = []
+    for raw in _list(hypnogram.get("sleepStateChanges")):
+        change = _object(raw)
+        duration = change.get("offsetFromStart")
+        offset = _number(duration[:-1], 0, 86400) if isinstance(duration, str) and duration.endswith("s") else None
+        if offset is None or (changes and offset <= changes[-1][0]):
+            raise CollectorSchemaError("Invalid sleep state offset")
+        changes.append((offset, stages.get(change.get("newState", ""), SleepStageType.UNKNOWN)))
+    if not changes:
+        return []
+    if changes[0][0] != 0:
+        changes.insert(0, (0, SleepStageType.UNKNOWN))
+    result = []
+    for index, (offset, stage) in enumerate(changes):
+        low = start + timedelta(seconds=offset)
+        high = min(start + timedelta(seconds=changes[index + 1][0]), end) if index + 1 < len(changes) else end
+        # Polar can include a terminal transition just beyond sleepEnd.
+        if low < high:
+            result.append(SleepStage(stage=stage, start_time=low, end_time=high))
+    return result
 
 
 def empty_observations() -> dict[str, Any]:
@@ -212,12 +244,28 @@ def normalize_polar_response(kind: str, day: date, payload: dict[str, Any]) -> t
             if start is None or end is None or not 0 < (end - start).total_seconds() <= 86400:
                 diagnostics["rejected_samples"] += 1
                 continue
+            stages = _sleep_stages(hypnogram, start, end)
+            complete = bool(stages) and all(stage.stage != SleepStageType.UNKNOWN for stage in stages)
+            seconds = {
+                kind: sum(
+                    (stage.end_time - stage.start_time).total_seconds() for stage in stages if stage.stage == kind
+                )
+                for kind in (SleepStageType.LIGHT, SleepStageType.DEEP, SleepStageType.REM, SleepStageType.AWAKE)
+            }
+            asleep = sum(seconds[kind] for kind in (SleepStageType.LIGHT, SleepStageType.DEEP, SleepStageType.REM))
             output["sleeps"].append(
                 {
                     "date": day.isoformat(),
                     "startMs": int(start.timestamp() * 1000),
                     "endMs": int(end.timestamp() * 1000),
                     "durationMinutes": round((end - start).total_seconds() / 60),
+                    "totalMinutes": int(asleep // 60) if complete else None,
+                    "deepMinutes": int(seconds[SleepStageType.DEEP] // 60) if complete else None,
+                    "remMinutes": int(seconds[SleepStageType.REM] // 60) if complete else None,
+                    "lightMinutes": int(seconds[SleepStageType.LIGHT] // 60) if complete else None,
+                    "awakeMinutes": int(seconds[SleepStageType.AWAKE] // 60) if complete else None,
+                    "efficiency": round(100 * asleep / (end - start).total_seconds(), 2) if complete else None,
+                    "stages": [stage.model_dump(mode="json") for stage in stages] or None,
                     "score": _number(_object(night.get("sleepScore")).get("sleepScore"), 1, 100),
                     "scores": {
                         key: _number(_object(night.get("sleepScore")).get(key), 0, 100)

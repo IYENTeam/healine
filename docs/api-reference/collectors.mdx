@@ -87,6 +87,15 @@ Samples use epoch milliseconds in `timestampMs`; activity vectors also include
 Polar `score`. Missing data gives empty arrays. Later empty or failed fetches retain
 previously successful observations alongside the latest diagnostics.
 
+Sleep observations also include `totalMinutes`, `deepMinutes`, `remMinutes`,
+`lightMinutes`, `awakeMinutes`, `efficiency`, and `stages`, persisted to the
+existing sleep details. Polar's `sleepStateChanges` offsets define stage intervals
+clipped to the recorded sleep bounds. Total sleep excludes awake intervals;
+efficiency is asleep time / elapsed time as a percentage, not Polar's
+`scores.efficiencyScore` rating. Missing or unknown intervals leave aggregates
+null rather than treating unobserved time as sleep. Stage timestamps retain
+their source offset. Replaying a batch updates the same sleep event and details.
+
 ### Workout sessions
 
 `workout` accepts the v4 `/training-sessions/list` response with `trainingSessions`.
