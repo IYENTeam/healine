@@ -326,6 +326,16 @@ function dailyDescription_(summary) {
       summary.workoutAccess === 'error' ? '운동 조회 실패 · 기존 기록은 유지됩니다.' :
       summary.workoutAccess === 'granted' ? 'Polar에서 반환한 운동 기록이 없습니다.' : '운동 수신 여부를 아직 확인하지 못했습니다.');
   }
+  var spans = untrackedActiveSpans_(summary);
+  if (spans.length) {
+    lines.push('운동 기록과 겹치지 않는 활동 구간 (한 시간 걸음 ' + UNTRACKED_ACTIVE_MIN_STEPS + '보·심박 중앙값 ' +
+      UNTRACKED_ACTIVE_MIN_HR + ' bpm 이상이 이어진 시간):');
+    spans.forEach(function (span) {
+      lines.push(clockTime_(span.startMs) + '–' + clockTime_(span.endMs) + ' · 걸음 ' + span.steps + '보 · 심박 중앙값 ' +
+        span.minHeartRate + '–' + span.maxHeartRate + ' bpm');
+    });
+    lines.push('Polar 운동 세션으로 저장되지 않은 활동일 수 있습니다. 강도 판정이 아니라 기록 누락 확인용입니다.');
+  }
   lines = lines.concat(trainingLines_(summary), measurementLines_(summary));
   if (summary.checkin) lines.push('', '내 체크인', '컨디션 ' + summary.checkin.value + '/5 (메모 기록)');
   var hours = (summary.hours || []).filter(hasHourlyObservations_);
@@ -362,6 +372,30 @@ function dailyDescription_(summary) {
     calendarDataBlock_(dailyCalendarData_(summary)),
     '[healine-day:' + summary.date + ']');
   return lines.join('\n');
+}
+
+var UNTRACKED_ACTIVE_MIN_STEPS = 1000;
+var UNTRACKED_ACTIVE_MIN_HR = 90;
+
+// Consecutive hours with many steps and raised heart rate that no Polar workout overlaps.
+function untrackedActiveSpans_(summary) {
+  var workouts = summary.workouts || [], spans = [], current = null;
+  (summary.hours || []).slice().sort(function (a, b) { return a.startMs - b.startMs; }).forEach(function (hour) {
+    var active = hour.steps !== null && hour.steps >= UNTRACKED_ACTIVE_MIN_STEPS &&
+      hour.medianHeartRate !== null && hour.medianHeartRate >= UNTRACKED_ACTIVE_MIN_HR &&
+      !workouts.some(function (w) { return w.startMs < hour.endMs && w.endMs > hour.startMs; });
+    if (!active) { current = null; return; }
+    if (current && current.endMs === hour.startMs) {
+      current.endMs = hour.endMs; current.steps += hour.steps; current.hours++;
+      current.minHeartRate = Math.min(current.minHeartRate, hour.medianHeartRate);
+      current.maxHeartRate = Math.max(current.maxHeartRate, hour.medianHeartRate);
+    } else {
+      current = { startMs: hour.startMs, endMs: hour.endMs, steps: hour.steps, hours: 1,
+        minHeartRate: hour.medianHeartRate, maxHeartRate: hour.medianHeartRate };
+      spans.push(current);
+    }
+  });
+  return spans;
 }
 
 function minutesText_(seconds) {
@@ -503,6 +537,10 @@ function dailyCalendarData_(summary) {
     workouts: { access: summary.workoutAccess || 'unknown', count: (summary.workouts || []).length,
       ids: (summary.workouts || []).map(function (w) { return w.id; }),
       durationSeconds: (summary.workouts || []).reduce(function (sum, w) { return sum + w.durationSeconds; }, 0) },
+    untrackedActiveSpans: untrackedActiveSpans_(summary).map(function (span) {
+      return { start: isoTimestamp_(span.startMs), end: isoTimestamp_(span.endMs), steps: span.steps,
+        hourMedianHeartRateMinBpm: span.minHeartRate, hourMedianHeartRateMaxBpm: span.maxHeartRate };
+    }),
     activity: { observedSteps: summary.steps, metCoveredMinutes: summary.activityMinutes,
       stepCoveredMinutes: summary.stepMinutes, metAtLeast2ObservedMinutes: summary.activityMinutes ? summary.activeMinutes : null },
     heartRate: { samples: summary.heartRateSampleCount, observedQuarters: summary.observedWindows,
