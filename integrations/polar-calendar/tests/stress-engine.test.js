@@ -176,3 +176,20 @@ test('missing recovery names an overnight with no heart rate, but not a partly r
   assert.doesNotMatch(partial.guidance, /00–06시/);
   assert.equal(c.buildDailySummary_('2026-09-17', [], {}).overnightHeartRate, null);
 });
+
+test('unknown skin contact is split by whether heart rate still arrived', () => {
+  const rows = [
+    { heartRateSampleCount: 12, wear: { contactMinutes: 0, noContactMinutes: 0, unknownMinutes: 15 } },
+    { heartRateSampleCount: 0, wear: { contactMinutes: 0, noContactMinutes: 0, unknownMinutes: 15 } },
+    { heartRateSampleCount: 8, wear: { contactMinutes: 10, noContactMinutes: 0, unknownMinutes: 5 } },
+    { heartRateSampleCount: 5, wear: null }
+  ];
+  const w = c.sumWear_(rows);
+  assert.equal(w.quarters, 3);
+  assert.equal(w.unknownMinutes, 35);
+  assert.equal(w.unknownWithHeartRateMinutes, 20);
+  const line = c.measurementLines_({ wear: w }).find(l => l.startsWith('착용('));
+  assert.ok(line.includes('확인 불가 35분 (그중 심박 수신 20분)'), line);
+  const none = c.measurementLines_({ wear: { contactMinutes: 15, noContactMinutes: 0, unknownMinutes: 0, unknownWithHeartRateMinutes: 0 } }).find(l => l.startsWith('착용('));
+  assert.ok(!none.includes('그중 심박 수신'), none);
+});

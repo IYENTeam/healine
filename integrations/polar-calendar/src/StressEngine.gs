@@ -221,7 +221,11 @@ function sumWear_(rows) {
   return ['contactMinutes', 'noContactMinutes', 'unknownMinutes'].reduce(function (total, key) {
     total[key] = known.reduce(function (n, r) { return n + r.wear[key]; }, 0);
     return total;
-  }, { quarters: known.length });
+  }, {
+    quarters: known.length,
+    // Unknown contact while heart rate still arrived: the watch was likely on the wrist, only contact was unreported.
+    unknownWithHeartRateMinutes: known.reduce(function (n, r) { return n + (r.heartRateSampleCount > 0 ? r.wear.unknownMinutes : 0); }, 0)
+  });
 }
 
 function summarizePpi_(rows) {
