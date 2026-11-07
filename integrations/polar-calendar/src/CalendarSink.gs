@@ -410,7 +410,9 @@ function testText_(test) {
 function measurementLines_(summary) {
   var lines = [], w = summary.wear, temp = summary.temperature, ppi = summary.ppi;
   if (w) lines.push('착용(피부 접촉) 확인 ' + minutesText_(w.contactMinutes * 60) + ' · 미착용 ' + minutesText_(w.noContactMinutes * 60) +
-    ' · 확인 불가 ' + minutesText_(w.unknownMinutes * 60) + ' (심박 미수신과 미착용을 구분)');
+    ' · 확인 불가 ' + minutesText_(w.unknownMinutes * 60) +
+    (w.unknownWithHeartRateMinutes ? ' (그중 심박 수신 ' + minutesText_(w.unknownWithHeartRateMinutes * 60) + ')' : '') +
+    ' (심박 미수신과 미착용을 구분)');
   if (temp && temp.status === 'measured') lines.push('수면 중 피부 온도 중앙값 ' + temp.medianCelsius + '°C' +
     (temp.deviationCelsius !== null ? ' · 이전 ' + temp.referenceNights + '밤 대비 ' + signed_(temp.deviationCelsius) + '°C'
       : ' · 이전 밤 ' + temp.referenceNights + '개 (5밤부터 비교)') + ' · 손목 피부 온도는 체온이 아닙니다.');
