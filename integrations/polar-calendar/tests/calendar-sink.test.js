@@ -244,7 +244,7 @@ test('polling publishes observed zero activity without heart rate and skips empt
     stepSamples:[{timestampMs:Date.parse('2026-09-17T14:00:00+09:00'),steps:0}],sleeps:[]});
   assert.equal(c.runHealine().hourlyRecordCount,1);
   const hourly=saved.filter(e=>e.tags.healineHour);
-  assert.equal(hourly.length,1);assert.equal(hourly[0].title,'🚶 활동 기록 · 0보');
+  assert.equal(hourly.length,1);assert.equal(hourly[0].title,'⌚ 심박 미수신 · 0보');
   const data=calendarData(hourly[0].description);
   assert.equal(data.quarters[0].heartRate.medianBpm,null);
   assert.equal(data.quarters[0].activity.observedSteps,0);
@@ -292,4 +292,14 @@ test('ANS and sleep subscores retain units, zero status and the sync warning', (
   assert.ok(text.includes('수면 효율 관련 점수: 45/100'));assert.ok(!text.includes('45%'));
   assert.equal(data.recovery.polarAnsStatus,0);assert.equal(data.syncWarning,'Polar 재연결 필요');
   assert.equal(data.sleep.polarComponentScoresOutOf100.groupSolidityScore,39);
+});
+
+test('hourly title needs sustained movement before calling an hour active', () => {
+  const {c}=setup();
+  const hour=(fields)=>({windows:[{}],elevatedMinutes:0,activeMinutes:0,steps:0,medianHeartRate:72,...fields});
+  c.hasHourlyObservations_=()=>true;
+  assert.equal(c.hourlyTitle_(hour({activeMinutes:1})),'🫀 심박 기록 · 72 bpm · 0보');
+  assert.equal(c.hourlyTitle_(hour({activeMinutes:5})),'🚶 활동 기록 · 72 bpm · 0보');
+  assert.equal(c.hourlyTitle_(hour({steps:100})),'🚶 활동 기록 · 72 bpm · 100보');
+  assert.equal(c.hourlyTitle_(hour({medianHeartRate:null})),'⌚ 심박 미수신 · 0보');
 });
