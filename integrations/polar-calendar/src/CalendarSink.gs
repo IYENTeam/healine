@@ -70,7 +70,7 @@ function upsertHealineHour_(calendar, events, hour) {
     title: hourlyTitle_(hour), description: hourlyDescription_(hour), notes: true,
     compactDescription: function () { return compactHourlyDescription_(hour); },
     color: hour.elevatedMinutes >= 30 ? CalendarApp.EventColor.ORANGE :
-      hour.activeMinutes > 0 || hour.steps >= 100 ? CalendarApp.EventColor.BLUE : CalendarApp.EventColor.GRAY
+      hourLooksActive_(hour) ? CalendarApp.EventColor.BLUE : CalendarApp.EventColor.GRAY
   });
 }
 
@@ -88,10 +88,15 @@ function compactHourlyDescription_(hour) {
   return lines.join('\n');
 }
 
+// A lone MET >= 2 sample occurs even during sleep, so one active minute is not enough to label the hour.
+function hourLooksActive_(hour) {
+  return hour.activeMinutes >= 5 || hour.steps >= 100;
+}
+
 function hourlyTitle_(hour) {
   if (!hasHourlyObservations_(hour)) return '⌛ 관측 미수신';
   var title = hour.elevatedMinutes >= 30 ? '🫀 비슷한 활동 대비 심박 ↑' :
-    hour.activeMinutes > 0 || hour.steps >= 100 || hour.medianHeartRate === null ? '🚶 활동 기록' : '🫀 심박 기록';
+    hourLooksActive_(hour) ? '🚶 활동 기록' : hour.medianHeartRate === null ? '⌚ 심박 미수신' : '🫀 심박 기록';
   if (hour.medianHeartRate !== null) title += ' · ' + hour.medianHeartRate + ' bpm';
   if (hour.steps !== null) title += ' · ' + hour.steps + '보';
   return title;
