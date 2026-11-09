@@ -246,6 +246,7 @@ function buildDailySummary_(date, windows, data) {
     date: date, windows: rows, nightly: nightly, sleep: sleep,
     workouts: (data.workouts || []).filter(function (workout) { return dateKeyPure_(workout.startMs) === date; }),
     workoutAccess: data.workoutAccess || 'unknown',
+    sleepComparison: compareSleepHistory_(date, sleep, data.sleepHistory || data.sleeps || []),
     nightComparison: compareNightlyHistory_(date, nightly, data.nightlyHistory || data.nightlyRecharges || []),
     comparisonEligibleWindows: rows.filter(function (r) { return r.comparisonEligible; }).length,
     comparedWindows: rows.filter(function (r) { return r.baseline; }).length,
@@ -298,6 +299,31 @@ function compareNightlyHistory_(date, nightly, history) {
     medianRmssdMs: round_(rmssd, 1), medianHeartRateFromRriBpm: round_(heart, 1),
     rmssdChangePercent: currentRmssd ? round_((currentRmssd / rmssd - 1) * 100, 1) : null,
     heartRateChangeBpm: rri ? round_(60000 / rri - heart, 1) : null };
+}
+
+// Sleep start is compared as minutes after local noon so 23:30 and 00:30 stay 60 minutes apart.
+function sleepStartMinutesFromNoon_(startMs) {
+  var minutes = Math.floor(((startMs + 9 * 3600000) % 86400000) / 60000);
+  return (minutes - 720 + 1440) % 1440;
+}
+
+function compareSleepHistory_(date, sleep, history) {
+  if (!sleep) return null;
+  var byDate = {};
+  history.forEach(function (s) {
+    var distance = localDayStartMs_(date) - localDayStartMs_(s.date);
+    if (distance > 0 && distance <= HEALINE.baselineDays * 86400000 && positiveNumber_(s.durationMinutes) &&
+        validNumber_(s.startMs) !== null) byDate[s.date] = s;
+  });
+  var dates = Object.keys(byDate).sort();
+  if (dates.length < 3) return { nights: dates.length, medianStartFromNoonMinutes: null, medianDurationMinutes: null,
+    startShiftMinutes: null, durationChangeMinutes: null };
+  var start = Math.round(median_(dates.map(function (d) { return sleepStartMinutesFromNoon_(byDate[d].startMs); })));
+  var duration = Math.round(median_(dates.map(function (d) { return byDate[d].durationMinutes; })));
+  return { reference: 'previous_received_nights_within_14_days', nights: dates.length,
+    medianStartFromNoonMinutes: start, medianDurationMinutes: duration,
+    startShiftMinutes: sleepStartMinutesFromNoon_(sleep.startMs) - start,
+    durationChangeMinutes: sleep.durationMinutes - duration };
 }
 
 function seoulHourPure_(timestampMs) { return new Date(timestampMs + 9 * 3600000).getUTCHours(); }

@@ -38,7 +38,9 @@ function buildBaseline_(data, from, to) {
   return { version: HEALINE.modelVersion, workoutContextVersion: 1, createdAt: new Date().toISOString(), from: from, to: to, days: days,
     nights: (data.nightlyRecharges || []).filter(function (n) { return n.sleepResultDate >= from && n.sleepResultDate < to; })
       .map(function (n) { return { sleepResultDate: n.sleepResultDate,
-        meanNightlyRecoveryRmssd: n.meanNightlyRecoveryRmssd, meanNightlyRecoveryRri: n.meanNightlyRecoveryRri }; }) };
+        meanNightlyRecoveryRmssd: n.meanNightlyRecoveryRmssd, meanNightlyRecoveryRri: n.meanNightlyRecoveryRri }; }),
+    sleeps: (data.sleeps || []).filter(function (s) { return s.date >= from && s.date < to; })
+      .map(function (s) { return { date: s.date, startMs: s.startMs, durationMinutes: s.durationMinutes }; }) };
 }
 
 function saveBaseline_(baseline) {

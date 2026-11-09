@@ -293,3 +293,20 @@ test('ANS and sleep subscores retain units, zero status and the sync warning', (
   assert.equal(data.recovery.polarAnsStatus,0);assert.equal(data.syncWarning,'Polar 재연결 필요');
   assert.equal(data.sleep.polarComponentScoresOutOf100.groupSolidityScore,39);
 });
+
+test('daily sleep compares start and length with previous nights across midnight', () => {
+  const {c}=setup();
+  const night=(date,start,minutes)=>({date,startMs:Date.parse(start),endMs:Date.parse(start)+minutes*60000,durationMinutes:minutes});
+  const history=[night('2026-11-06','2026-11-05T23:30:00+09:00',400),night('2026-11-07','2026-11-07T00:10:00+09:00',420),
+    night('2026-11-08','2026-11-07T23:50:00+09:00',410)];
+  const today=night('2026-11-09','2026-11-09T00:43:00+09:00',276);
+  const day=c.buildDailySummary_('2026-11-09',[],{sleeps:[today],sleepHistory:history.concat([today])});
+  const description=c.dailyDescription_(day), data=calendarData(description);
+  assert.equal(data.sleep.comparison.nights,3);
+  assert.equal(data.sleep.comparison.startShiftMinutes,53);
+  assert.equal(data.sleep.comparison.durationChangeMinutes,-134);
+  assert.ok(description.includes('이전 3밤 중앙값: 시작 23:50 · 길이 6시간 50분 → 시작 +53분 · 길이 -134분'));
+  const few=c.buildDailySummary_('2026-11-09',[],{sleeps:[today],sleepHistory:history.slice(0,2)});
+  assert.equal(few.sleepComparison.medianDurationMinutes,null);
+  assert.ok(c.dailyDescription_(few).includes('3밤부터'));
+});

@@ -291,6 +291,13 @@ function dailyDescription_(summary) {
   if (summary.sleep) {
     lines.push('수면 구간: ' + clockTime_(summary.sleep.startMs) + '–' + clockTime_(summary.sleep.endMs) +
       ' (' + durationText_(summary.sleep.durationMinutes) + ', 중간 각성 포함)');
+    var sc = summary.sleepComparison;
+    if (sc && sc.medianDurationMinutes !== null) {
+      var noonClock = (sc.medianStartFromNoonMinutes + 720) % 1440;
+      lines.push('  이전 ' + sc.nights + '밤 중앙값: 시작 ' + ('0' + Math.floor(noonClock / 60)).slice(-2) + ':' +
+        ('0' + noonClock % 60).slice(-2) + ' · 길이 ' + durationText_(sc.medianDurationMinutes) +
+        ' → 시작 ' + signed_(sc.startShiftMinutes) + '분 · 길이 ' + signed_(sc.durationChangeMinutes) + '분');
+    } else if (sc) lines.push('  이전 밤 ' + sc.nights + '개 (3밤부터 시작·길이 비교)');
     if (summary.sleep.score !== null) lines.push('Polar 수면 점수: ' + round_(summary.sleep.score, 1) + '/100');
     var scores = summary.sleep.scores || {};
     [['수면 견고성', 'groupSolidityScore'], ['수면 연속성', 'continuityScore'],
@@ -486,7 +493,7 @@ function dailyCalendarData_(summary) {
       rmssdMs: positiveNumber_(n.meanNightlyRecoveryRmssd), baselineRmssdMs: positiveNumber_(n.meanBaselineRmssd) },
     sleep: sleep ? { start: isoTimestamp_(sleep.startMs), end: isoTimestamp_(sleep.endMs),
       intervalMinutesIncludingAwake: sleep.durationMinutes, polarScore: sleep.score,
-      polarComponentScoresOutOf100: sleep.scores || null } : null,
+      polarComponentScoresOutOf100: sleep.scores || null, comparison: summary.sleepComparison || null } : null,
     syncWarning: summary.syncWarning || null,
     overnightPersonalComparison: summary.nightComparison || null,
     training: summary.training || null,
