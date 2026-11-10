@@ -233,8 +233,24 @@ function summarizePpi_(rows) {
     validIntervals: recorded.reduce(function (n, r) { return n + r.ppi.validIntervals; }, 0) };
 }
 
+function summarizeOvernightHeartRate_(rows) {
+  var night = rows.filter(function (r) { return seoulHourPure_(r.startMs) < 6; });
+  if (!night.length) return null;
+  return { fromHour: 0, toHour: 6, windows: night.length,
+    heartRateWindows: night.filter(function (r) { return r.heartRateSampleCount > 0; }).length };
+}
+
+function missingRecoveryGuidance_(overnight) {
+  var base = '오늘 날짜의 회복 기록이 아직 없습니다. 어제 값을 오늘 상태로 사용하지 않습니다.';
+  if (overnight && overnight.heartRateWindows === 0) {
+    return base + ' 00–06시 15분 구간 ' + overnight.windows + '개에 심박이 한 번도 들어오지 않았습니다. 밤사이 착용·동기화 여부를 확인하세요.';
+  }
+  return base;
+}
+
 function buildDailySummary_(date, windows, data) {
   var rows = windows.filter(function (r) { return dateKeyPure_(r.startMs) === date; });
+  var overnight = summarizeOvernightHeartRate_(rows);
   var steps = rows.filter(function (r) { return r.steps !== null; });
   var nights = (data.nightlyRecharges || []).filter(function (n) { return n.sleepResultDate === date; });
   nights.sort(function (a, b) { return String(b.modified || '').localeCompare(String(a.modified || '')); });
@@ -269,6 +285,7 @@ function buildDailySummary_(date, windows, data) {
     tests: (data.tests || []).filter(function (t) { return dateKeyPure_(t.startMs) === date; }),
     checkin: (data.checkins || []).filter(function (c) { return c.type === 'day_condition' && c.date === date; })[0] || null,
     wear: sumWear_(rows),
+    overnightHeartRate: overnight,
     ppi: summarizePpi_(rows),
     missingExtendedScopes: data.missingExtendedScopes || [],
     guidance: nightly && validNumber_(nightly.ansRate) !== null && nightly.ansRate <= 2
@@ -277,7 +294,7 @@ function buildDailySummary_(date, windows, data) {
       ? '일정 사이 쉬는 시간을 먼저 확보하고, 운동 강도는 오늘 느끼는 피로와 함께 결정하세요.'
       : indicator !== null
         ? '회복 기록과 현재 몸 상태가 일치하는지 확인하고 오늘 일정을 조절하세요.'
-        : '오늘 날짜의 회복 기록이 아직 없습니다. 어제 값을 오늘 상태로 사용하지 않습니다.'
+        : missingRecoveryGuidance_(overnight)
   };
 }
 
