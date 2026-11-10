@@ -163,3 +163,16 @@ test('overnight personal reference excludes same-day and future nights and does 
   assert.equal(r.nights,7);assert.equal(r.rmssdChangePercent,-25);assert.equal(r.heartRateChangeBpm,6.7);
   assert.equal(c.compareNightlyHistory_('2026-09-17',current,history.slice(0,2)),null);
 });
+
+test('missing recovery names an overnight with no heart rate, but not a partly received night', () => {
+  const night = Date.parse('2026-09-17T00:00:00+09:00');
+  const rows = Array.from({length: 24}, (_, i) => ({startMs: night + i * 900000, heartRateSampleCount: 0}));
+  const empty = c.buildDailySummary_('2026-09-17', rows, {});
+  assert.deepEqual({...empty.overnightHeartRate}, {fromHour: 0, toHour: 6, windows: 24, heartRateWindows: 0});
+  assert.match(empty.guidance, /00–06시 15분 구간 24개에 심박이 한 번도/);
+  rows[3].heartRateSampleCount = 5;
+  const partial = c.buildDailySummary_('2026-09-17', rows, {});
+  assert.equal(partial.overnightHeartRate.heartRateWindows, 1);
+  assert.doesNotMatch(partial.guidance, /00–06시/);
+  assert.equal(c.buildDailySummary_('2026-09-17', [], {}).overnightHeartRate, null);
+});
