@@ -193,12 +193,21 @@ function workoutDurationText_(seconds) {
   return (hours ? hours + '시간 ' : '') + minutes + '분' + (total % 60 ? ' ' + total % 60 + '초' : '');
 }
 
+var LONG_WORKOUT_SECONDS_ = 3 * 3600;
+
+function workoutLooksUnstopped_(workout) {
+  return validNumber_(workout.durationSeconds) !== null && workout.durationSeconds >= LONG_WORKOUT_SECONDS_;
+}
+
 function workoutDescription_(workout, compact) {
   var lines = ['Healine · Polar 운동 기록',
     workout.sport.label + ' · ' + workout.name,
     formatDateTime_(new Date(workout.startMs)) + '–' + formatDateTime_(new Date(workout.endMs)) + ' (Asia/Seoul)',
     '운동 시간: ' + workoutDurationText_(workout.durationSeconds) +
       ' · 시작–종료 경과: ' + workoutDurationText_(workout.elapsedSeconds)];
+  if (workoutLooksUnstopped_(workout)) {
+    lines.push('기록 확인: 3시간 이상 기록되어 운동 종료를 누르지 않은 기록일 수 있습니다. Polar Flow에서 실제 종료 시각을 확인하세요. 이 세션이 7일 부하 합에 그대로 들어갑니다.');
+  }
   if (workout.distanceMeters !== null) lines.push('거리: ' + round_(workout.distanceMeters / 1000, 2) + ' km');
   if (workout.energyKcal !== null) lines.push('칼로리: ' + workout.energyKcal + ' kcal');
   lines.push('운동 심박: 평균 ' + displayValue_(workout.heartRateAvgBpm) +
@@ -249,6 +258,7 @@ function upsertHealineWorkout_(calendar, events, workout) {
     }
   }
   var title = '🏋️ ' + workout.sport.label + ' · ' + workoutDurationText_(workout.durationSeconds);
+  if (workoutLooksUnstopped_(workout)) title += ' · 종료 누락 의심';
   if (workout.distanceMeters !== null && workout.distanceMeters > 0) title += ' · ' + round_(workout.distanceMeters / 1000, 2) + ' km';
   var event = upsertManagedEvent_(calendar, events, {
     tag: 'healineWorkout', key: workout.id, startMs: workout.startMs, endMs: workout.endMs,

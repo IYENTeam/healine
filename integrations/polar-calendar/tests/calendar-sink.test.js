@@ -81,6 +81,14 @@ test('daily summary lists workout duration in whole minutes and seconds, never f
   const line=day.description.split('\n').find(l=>l.includes('달리기'));
   assert.equal(line,'23:30 · 달리기 · 42분 17초');
 });
+test('workouts of three hours or more are flagged as a possibly unstopped recording', () => {
+  const {c,calendar,saved}=setup();
+  c.upsertHealineWorkout_(calendar,[],{...workoutFixture(),id:'long',distanceMeters:null,durationSeconds:17821});
+  c.upsertHealineWorkout_(calendar,[],workoutFixture());
+  assert.equal(saved[0].title,'🏋️ 달리기 · 4시간 57분 1초 · 종료 누락 의심');
+  assert.ok(saved[0].description.includes('기록 확인: 3시간 이상'));
+  assert.ok(!saved[1].title.includes('종료 누락'));assert.ok(!saved[1].description.includes('기록 확인'));
+});
 test('daily summaries are idempotent, free of reminders, and preserve personal notes', () => {
   const {c,calendar,saved}=setup(); const events=[];
   const day=c.buildDailySummary_('2026-09-17',[],{sleepAccess:'needs_connection'});
