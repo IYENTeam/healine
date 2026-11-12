@@ -328,3 +328,15 @@ test('daily sleep compares start and length with previous nights across midnight
   assert.equal(few.sleepComparison.medianDurationMinutes,null);
   assert.ok(c.dailyDescription_(few).includes('3밤부터'));
 });
+
+test('compacted day summary keeps the sleep interval and low Polar sleep scores', () => {
+  const {c}=setup();
+  const lines=c.compactSleepLines_({sleep:{startMs:Date.parse('2026-11-11T22:14:29+09:00'),endMs:Date.parse('2026-11-12T07:05:29+09:00'),
+    durationMinutes:531,score:79.1307,scores:{continuityScore:62,efficiencyScore:64.3691}}});
+  assert.equal(lines[0],'');
+  assert.ok(lines[1].startsWith('수면 구간 22:14–07:05'));
+  assert.ok(lines[1].includes('중간 각성 포함'));
+  assert.ok(lines[1].includes('Polar 수면 점수 79.1'));
+  assert.ok(lines[1].includes('연속성 62 · 효율 관련 64.4'));
+  assert.equal(c.compactSleepLines_({sleep:null}).length,0);
+});
