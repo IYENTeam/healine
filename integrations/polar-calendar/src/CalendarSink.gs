@@ -158,12 +158,28 @@ function upsertHealineDay_(calendar, events, summary) {
         calendarDataBlock_(dailyCalendarData_(summary)) + '\n[healine-day:' + summary.date + ']';
       var head = 'Healine · ' + summary.date + ' 하루 요약\n' + summary.guidance;
       // Keep the short training and measurement lines when they still fit with the notes.
-      var extra = trainingLines_(summary).concat(measurementLines_(summary)).join('\n');
+      var extra = compactSleepLines_(summary).concat(trainingLines_(summary), measurementLines_(summary)).join('\n');
       return head.length + extra.length + tail.length + (notesLength || 0) <= 8000 ? head + extra + tail : head + tail;
     },
     color: summary.recoveryIndicator === null ? CalendarApp.EventColor.GRAY :
       summary.recoveryIndicator <= 3 ? CalendarApp.EventColor.ORANGE : CalendarApp.EventColor.GREEN
   });
+}
+
+// One sleep line so a compacted summary still shows that the interval includes awake time.
+function compactSleepLines_(summary) {
+  var sleep = summary.sleep;
+  if (!sleep) return [];
+  var line = '수면 구간 ' + clockTime_(sleep.startMs) + '–' + clockTime_(sleep.endMs) +
+    ' (' + durationText_(sleep.durationMinutes) + ', 중간 각성 포함)';
+  if (sleep.score !== null && sleep.score !== undefined) line += ' · Polar 수면 점수 ' + round_(sleep.score, 1);
+  var scores = sleep.scores || {};
+  var parts = [['연속성', 'continuityScore'], ['효율 관련', 'efficiencyScore']].map(function (entry) {
+    var value = validNumber_(scores[entry[1]]);
+    return value === null ? null : entry[0] + ' ' + round_(value, 1);
+  }).filter(function (part) { return part !== null; });
+  if (parts.length) line += ' · ' + parts.join(' · ') + ' (/100 점수)';
+  return ['', line];
 }
 
 function workoutCalendarData_(workout, compact) {
