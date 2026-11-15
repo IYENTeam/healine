@@ -81,7 +81,7 @@ function compactHourlyDescription_(hour) {
     var line = clockTime_(row.startMs) + ' · 심박 ' + displayValue_(row.medianHeartRate) + ' bpm';
     if (row.baseline) line += ' · 이전 ' + row.baseline.days + '일 기준 ' + row.baseline.median +
       ' · 차이 ' + signed_(row.heartRateDelta);
-    else line += ' · 개인 비교 보류';
+    else line += row.status === 'SLEEP_RECORDED' ? ' · Polar 수면 구간' : ' · 개인 비교 보류';
     lines.push(line);
   });
   lines.push(calendarDataBlock_(hourlyCalendarData_(hour)), '[healine-hour:' + hourKey_(hour.startMs) + ']');
@@ -95,7 +95,9 @@ function hourLooksActive_(hour) {
 
 function hourlyTitle_(hour) {
   if (!hasHourlyObservations_(hour)) return '⌛ 관측 미수신';
+  // Lone MET samples occur during sleep, so an hour mostly inside Polar sleep is labeled as sleep first.
   var title = hour.elevatedMinutes >= 30 ? '🫀 비슷한 활동 대비 심박 ↑' :
+    hour.sleepMinutes >= 30 && !(hour.steps >= 100) ? '😴 수면 중 기록' :
     hourLooksActive_(hour) ? '🚶 활동 기록' : hour.medianHeartRate === null ? '⌚ 심박 미수신' : '🫀 심박 기록';
   if (hour.medianHeartRate !== null) title += ' · ' + hour.medianHeartRate + ' bpm';
   if (hour.steps !== null) title += ' · ' + hour.steps + '보';

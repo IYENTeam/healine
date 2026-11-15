@@ -187,6 +187,7 @@ function buildHourlyObservations_(windows) {
       elevatedMinutes: longest * 15,
       activeMinutes: rows.reduce(function (n, r) { return n + r.activeMinutes; }, 0),
       lowMovementMinutes: rows.filter(function (r) { return r.isQuiet; }).length * 15,
+      sleepMinutes: rows.filter(function (r) { return r.status === 'SLEEP_RECORDED'; }).length * 15,
       wear: sumWear_(rows)
     };
   });
