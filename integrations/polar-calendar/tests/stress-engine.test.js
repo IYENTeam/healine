@@ -86,6 +86,17 @@ test('separated high windows do not produce a sustained elevation message', () =
   assert.equal(hour.elevatedMinutes, 15);
   assert.ok(!c.hourlyTitle_(hour).includes('↑'));
 });
+test('hours mostly inside Polar sleep are titled as sleep even with stray MET samples', () => {
+  const row = (status, i, extra = {}) =>
+    ({...c.evaluateHealineWindow_(input()), status, baseline: null, startMs: start + i*900000, endMs: start+(i+1)*900000, ...extra});
+  const sleepy = c.buildHourlyObservations_(['SLEEP_RECORDED','SLEEP_RECORDED','SLEEP_RECORDED','PARTIAL']
+    .map((s, i) => row(s, i, {activeMinutes: i === 0 ? 1 : 0})))[0];
+  assert.equal(sleepy.sleepMinutes, 45);
+  assert.match(c.hourlyTitle_(sleepy), /^😴 수면 중 기록 · 66 bpm/);
+  assert.match(c.compactHourlyDescription_(sleepy), /14:00 · 심박 66 bpm · Polar 수면 구간/);
+  const edge = c.buildHourlyObservations_(['SLEEP_RECORDED','PARTIAL','PARTIAL','PARTIAL'].map((s, i) => row(s, i)))[0];
+  assert.ok(!c.hourlyTitle_(edge).startsWith('😴'));
+});
 test('baseline stores activity features in per-day properties and reloads losslessly', () => {
   const data = {heartRateSamples: [], metSamples: [], stepSamples: []};
   for (let d = 10; d <= 16; d++) {
