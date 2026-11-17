@@ -152,6 +152,9 @@ function hourlyDescription_(hour) {
 
 function upsertHealineDay_(calendar, events, summary) {
   var title = '🌿 회복 ' + summary.recoveryLabel;
+  // No recovery plus a night with zero heart-rate windows is a wear/sync gap; say so where it is seen.
+  var night = summary.overnightHeartRate;
+  if (summary.recoveryIndicator === null && night && night.heartRateWindows === 0) title += ' · ⌚ 밤 심박 미수신';
   if (summary.syncWarning) title = '⚠️ 수집 중단 · 회복 ' + summary.recoveryLabel;
   if (summary.sleep) title += ' · 수면 구간 ' + durationText_(summary.sleep.durationMinutes);
   if ((summary.workouts || []).length) title += ' · 운동 ' + summary.workouts.length + '회';
