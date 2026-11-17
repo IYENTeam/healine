@@ -86,6 +86,17 @@ test('separated high windows do not produce a sustained elevation message', () =
   assert.equal(hour.elevatedMinutes, 15);
   assert.ok(!c.hourlyTitle_(hour).includes('↑'));
 });
+test('hours mostly inside Polar sleep are titled as sleep even with stray MET samples', () => {
+  const row = (status, i, extra = {}) =>
+    ({...c.evaluateHealineWindow_(input()), status, baseline: null, startMs: start + i*900000, endMs: start+(i+1)*900000, ...extra});
+  const sleepy = c.buildHourlyObservations_(['SLEEP_RECORDED','SLEEP_RECORDED','SLEEP_RECORDED','PARTIAL']
+    .map((s, i) => row(s, i, {activeMinutes: i === 0 ? 1 : 0})))[0];
+  assert.equal(sleepy.sleepMinutes, 45);
+  assert.match(c.hourlyTitle_(sleepy), /^😴 수면 중 기록 · 66 bpm/);
+  assert.match(c.compactHourlyDescription_(sleepy), /14:00 · 심박 66 bpm · Polar 수면 구간/);
+  const edge = c.buildHourlyObservations_(['SLEEP_RECORDED','PARTIAL','PARTIAL','PARTIAL'].map((s, i) => row(s, i)))[0];
+  assert.ok(!c.hourlyTitle_(edge).startsWith('😴'));
+});
 test('baseline stores activity features in per-day properties and reloads losslessly', () => {
   const data = {heartRateSamples: [], metSamples: [], stepSamples: []};
   for (let d = 10; d <= 16; d++) {
@@ -175,4 +186,21 @@ test('missing recovery names an overnight with no heart rate, but not a partly r
   assert.equal(partial.overnightHeartRate.heartRateWindows, 1);
   assert.doesNotMatch(partial.guidance, /00–06시/);
   assert.equal(c.buildDailySummary_('2026-09-17', [], {}).overnightHeartRate, null);
+});
+
+test('unknown skin contact is split by whether heart rate still arrived', () => {
+  const rows = [
+    { heartRateSampleCount: 12, wear: { contactMinutes: 0, noContactMinutes: 0, unknownMinutes: 15 } },
+    { heartRateSampleCount: 0, wear: { contactMinutes: 0, noContactMinutes: 0, unknownMinutes: 15 } },
+    { heartRateSampleCount: 8, wear: { contactMinutes: 10, noContactMinutes: 0, unknownMinutes: 5 } },
+    { heartRateSampleCount: 5, wear: null }
+  ];
+  const w = c.sumWear_(rows);
+  assert.equal(w.quarters, 3);
+  assert.equal(w.unknownMinutes, 35);
+  assert.equal(w.unknownWithHeartRateMinutes, 20);
+  const line = c.measurementLines_({ wear: w }).find(l => l.startsWith('착용('));
+  assert.ok(line.includes('확인 불가 35분 (그중 심박 수신 20분)'), line);
+  const none = c.measurementLines_({ wear: { contactMinutes: 15, noContactMinutes: 0, unknownMinutes: 0, unknownWithHeartRateMinutes: 0 } }).find(l => l.startsWith('착용('));
+  assert.ok(!none.includes('그중 심박 수신'), none);
 });

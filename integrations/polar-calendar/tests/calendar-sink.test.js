@@ -81,6 +81,14 @@ test('daily summary lists workout duration in whole minutes and seconds, never f
   const line=day.description.split('\n').find(l=>l.includes('달리기'));
   assert.equal(line,'23:30 · 달리기 · 42분 17초');
 });
+test('workouts of three hours or more are flagged as a possibly unstopped recording', () => {
+  const {c,calendar,saved}=setup();
+  c.upsertHealineWorkout_(calendar,[],{...workoutFixture(),id:'long',distanceMeters:null,durationSeconds:17821});
+  c.upsertHealineWorkout_(calendar,[],workoutFixture());
+  assert.equal(saved[0].title,'🏋️ 달리기 · 4시간 57분 1초 · 종료 누락 의심');
+  assert.ok(saved[0].description.includes('기록 확인: 3시간 이상'));
+  assert.ok(!saved[1].title.includes('종료 누락'));assert.ok(!saved[1].description.includes('기록 확인'));
+});
 test('daily summaries are idempotent, free of reminders, and preserve personal notes', () => {
   const {c,calendar,saved}=setup(); const events=[];
   const day=c.buildDailySummary_('2026-09-17',[],{sleepAccess:'needs_connection'});
@@ -244,7 +252,7 @@ test('polling publishes observed zero activity without heart rate and skips empt
     stepSamples:[{timestampMs:Date.parse('2026-09-17T14:00:00+09:00'),steps:0}],sleeps:[]});
   assert.equal(c.runHealine().hourlyRecordCount,1);
   const hourly=saved.filter(e=>e.tags.healineHour);
-  assert.equal(hourly.length,1);assert.equal(hourly[0].title,'🚶 활동 기록 · 0보');
+  assert.equal(hourly.length,1);assert.equal(hourly[0].title,'⌚ 심박 미수신 · 0보');
   const data=calendarData(hourly[0].description);
   assert.equal(data.quarters[0].heartRate.medianBpm,null);
   assert.equal(data.quarters[0].activity.observedSteps,0);
@@ -292,4 +300,43 @@ test('ANS and sleep subscores retain units, zero status and the sync warning', (
   assert.ok(text.includes('수면 효율 관련 점수: 45/100'));assert.ok(!text.includes('45%'));
   assert.equal(data.recovery.polarAnsStatus,0);assert.equal(data.syncWarning,'Polar 재연결 필요');
   assert.equal(data.sleep.polarComponentScoresOutOf100.groupSolidityScore,39);
+});
+
+test('hourly title needs sustained movement before calling an hour active', () => {
+  const {c}=setup();
+  const hour=(fields)=>({windows:[{}],elevatedMinutes:0,activeMinutes:0,steps:0,medianHeartRate:72,...fields});
+  c.hasHourlyObservations_=()=>true;
+  assert.equal(c.hourlyTitle_(hour({activeMinutes:1})),'🫀 심박 기록 · 72 bpm · 0보');
+  assert.equal(c.hourlyTitle_(hour({activeMinutes:5})),'🚶 활동 기록 · 72 bpm · 0보');
+  assert.equal(c.hourlyTitle_(hour({steps:100})),'🚶 활동 기록 · 72 bpm · 100보');
+  assert.equal(c.hourlyTitle_(hour({medianHeartRate:null})),'⌚ 심박 미수신 · 0보');
+});
+
+test('daily sleep compares start and length with previous nights across midnight', () => {
+  const {c}=setup();
+  const night=(date,start,minutes)=>({date,startMs:Date.parse(start),endMs:Date.parse(start)+minutes*60000,durationMinutes:minutes});
+  const history=[night('2026-11-06','2026-11-05T23:30:00+09:00',400),night('2026-11-07','2026-11-07T00:10:00+09:00',420),
+    night('2026-11-08','2026-11-07T23:50:00+09:00',410)];
+  const today=night('2026-11-09','2026-11-09T00:43:00+09:00',276);
+  const day=c.buildDailySummary_('2026-11-09',[],{sleeps:[today],sleepHistory:history.concat([today])});
+  const description=c.dailyDescription_(day), data=calendarData(description);
+  assert.equal(data.sleep.comparison.nights,3);
+  assert.equal(data.sleep.comparison.startShiftMinutes,53);
+  assert.equal(data.sleep.comparison.durationChangeMinutes,-134);
+  assert.ok(description.includes('이전 3밤 중앙값: 시작 23:50 · 길이 6시간 50분 → 시작 +53분 · 길이 -134분'));
+  const few=c.buildDailySummary_('2026-11-09',[],{sleeps:[today],sleepHistory:history.slice(0,2)});
+  assert.equal(few.sleepComparison.medianDurationMinutes,null);
+  assert.ok(c.dailyDescription_(few).includes('3밤부터'));
+});
+
+test('compacted day summary keeps the sleep interval and low Polar sleep scores', () => {
+  const {c}=setup();
+  const lines=c.compactSleepLines_({sleep:{startMs:Date.parse('2026-11-11T22:14:29+09:00'),endMs:Date.parse('2026-11-12T07:05:29+09:00'),
+    durationMinutes:531,score:79.1307,scores:{continuityScore:62,efficiencyScore:64.3691}}});
+  assert.equal(lines[0],'');
+  assert.ok(lines[1].startsWith('수면 구간 22:14–07:05'));
+  assert.ok(lines[1].includes('중간 각성 포함'));
+  assert.ok(lines[1].includes('Polar 수면 점수 79.1'));
+  assert.ok(lines[1].includes('연속성 62 · 효율 관련 64.4'));
+  assert.equal(c.compactSleepLines_({sleep:null}).length,0);
 });

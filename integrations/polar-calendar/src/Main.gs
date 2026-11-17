@@ -183,6 +183,7 @@ function auditHealineEvents_(events, from, to) {
 // The same writer handles recent data, old dates and replayed snapshots.
 function writeHealineRange_(range, data, baseline) {
   data.nightlyHistory = baseline && baseline.nights || data.nightlyRecharges || [];
+  data.sleepHistory = (baseline && baseline.sleeps || []).concat(data.sleeps || []);
   data.missingExtendedScopes = missingExtendedScopes_();
   var windows = evaluateHealineRange_(data, range.start.getTime(), range.end.getTime(), baseline);
   var calendar = getOrCreateHealineCalendar_();
