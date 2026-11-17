@@ -196,3 +196,12 @@ test('workout check-in, next-night response and training context reach the calen
   c.writeHealineRange_(range, stored, null);
   assert.deepEqual(posted[1].payload.checkins, [{ type: 'day_condition', value: 2 }, { type: 'workout_rpe', workoutId: 'w1', value: 8 }]);
 });
+
+test('daily title flags a day with under an hour of confirmed wear', () => {
+  const { context: c } = paired();
+  const base = c.buildDailySummary_('2026-09-17', [], {});
+  const title = (wear) => { const { calendar, saved } = calendarFixture(); c.upsertHealineDay_(calendar, [], { ...base, wear }); return saved[0].title; };
+  assert.ok(title({ contactMinutes: 1, noContactMinutes: 648, unknownMinutes: 791 }).endsWith(' · ⌚ 착용 확인 1분'));
+  assert.ok(!title({ contactMinutes: 600, noContactMinutes: 0, unknownMinutes: 840 }).includes('착용 확인'));
+  assert.ok(!title(null).includes('착용 확인'));
+});

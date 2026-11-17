@@ -149,6 +149,8 @@ function upsertHealineDay_(calendar, events, summary) {
   if (summary.sleep) title += ' · 수면 구간 ' + durationText_(summary.sleep.durationMinutes);
   if ((summary.workouts || []).length) title += ' · 운동 ' + summary.workouts.length + '회';
   if (summary.steps !== null) title += ' · 관측 ' + summary.steps + '보';
+  // A day with almost no skin contact makes zero steps and missing recovery a wear gap, not a quiet day.
+  if (summary.wear && summary.wear.contactMinutes < 60) title += ' · ⌚ 착용 확인 ' + minutesText_(summary.wear.contactMinutes * 60);
   return upsertManagedEvent_(calendar, events, {
     tag: 'healineDay', key: summary.date, allDay: true, startMs: localDayStartMs_(summary.date),
     title: title, description: dailyDescription_(summary), notes: true,
