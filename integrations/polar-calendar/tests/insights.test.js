@@ -205,3 +205,13 @@ test('daily title flags a day with under an hour of confirmed wear', () => {
   assert.ok(!title({ contactMinutes: 600, noContactMinutes: 0, unknownMinutes: 840 }).includes('착용 확인'));
   assert.ok(!title(null).includes('착용 확인'));
 });
+
+test('daily title names a night with no heart rate when recovery is missing', () => {
+  const { context: c } = paired();
+  const base = c.buildDailySummary_('2026-09-17', [], {});
+  const title = (extra) => { const { calendar, saved } = calendarFixture(); c.upsertHealineDay_(calendar, [], { ...base, ...extra }); return saved[0].title; };
+  assert.ok(title({ overnightHeartRate: { fromHour: 0, toHour: 6, windows: 24, heartRateWindows: 0 } }).startsWith('🌿 회복 아직 없음 · ⌚ 밤 심박 미수신'));
+  assert.ok(!title({ overnightHeartRate: { fromHour: 0, toHour: 6, windows: 24, heartRateWindows: 3 } }).includes('밤 심박'));
+  assert.ok(!title({ overnightHeartRate: null }).includes('밤 심박'));
+  assert.ok(!title({ recoveryIndicator: 4, recoveryLabel: '보통', overnightHeartRate: { fromHour: 0, toHour: 6, windows: 24, heartRateWindows: 0 } }).includes('밤 심박'));
+});
