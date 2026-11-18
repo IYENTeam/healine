@@ -93,12 +93,17 @@ function hourLooksActive_(hour) {
   return hour.activeMinutes >= 5 || hour.steps >= 100;
 }
 
+// Missing heart rate during confirmed no-contact time is a wear gap, not a sensor gap.
+function hourMostlyUnworn_(hour) {
+  return !!hour.wear && hour.wear.noContactMinutes >= 30;
+}
+
 function hourlyTitle_(hour) {
   if (!hasHourlyObservations_(hour)) return '⌛ 관측 미수신';
   // Lone MET samples occur during sleep, so an hour mostly inside Polar sleep is labeled as sleep first.
   var title = hour.elevatedMinutes >= 30 ? '🫀 비슷한 활동 대비 심박 ↑' :
     hour.sleepMinutes >= 30 && !(hour.steps >= 100) ? '😴 수면 중 기록' :
-    hourLooksActive_(hour) ? '🚶 활동 기록' : hour.medianHeartRate === null ? '⌚ 심박 미수신' : '🫀 심박 기록';
+    hourLooksActive_(hour) ? '🚶 활동 기록' : hour.medianHeartRate === null ? hourMostlyUnworn_(hour) ? '⌚ 미착용' : '⌚ 심박 미수신' : '🫀 심박 기록';
   if (hour.medianHeartRate !== null) title += ' · ' + hour.medianHeartRate + ' bpm';
   if (hour.steps !== null) title += ' · ' + hour.steps + '보';
   return title;
