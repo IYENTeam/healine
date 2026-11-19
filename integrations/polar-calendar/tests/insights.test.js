@@ -206,6 +206,18 @@ test('daily title flags a day with under an hour of confirmed wear', () => {
   assert.ok(!title(null).includes('착용 확인'));
 });
 
+test('daily title flags half a day or more without skin contact', () => {
+  const { context: c } = paired();
+  const base = c.buildDailySummary_('2026-09-17', [], {});
+  const title = (wear) => { const { calendar, saved } = calendarFixture(); c.upsertHealineDay_(calendar, [], { ...base, wear }); return saved[0].title; };
+  const unworn = title({ contactMinutes: 125, noContactMinutes: 1274, unknownMinutes: 41 });
+  assert.ok(unworn.includes(' · ⌚ 미착용 '));
+  assert.ok(!unworn.includes('착용 확인'));
+  assert.ok(!title({ contactMinutes: 125, noContactMinutes: 719, unknownMinutes: 596 }).includes('미착용'));
+  assert.ok(!title({ contactMinutes: 1, noContactMinutes: 1300, unknownMinutes: 139 }).includes('미착용'));
+  assert.ok(!title(null).includes('미착용'));
+});
+
 test('daily title names a night with no heart rate when recovery is missing', () => {
   const { context: c } = paired();
   const base = c.buildDailySummary_('2026-09-17', [], {});

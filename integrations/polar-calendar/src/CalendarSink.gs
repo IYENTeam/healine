@@ -166,6 +166,8 @@ function upsertHealineDay_(calendar, events, summary) {
   if (summary.steps !== null) title += ' · 관측 ' + summary.steps + '보';
   // A day with almost no skin contact makes zero steps and missing recovery a wear gap, not a quiet day.
   if (summary.wear && summary.wear.contactMinutes < 60) title += ' · ⌚ 착용 확인 ' + minutesText_(summary.wear.contactMinutes * 60);
+  // Half a day or more without skin contact also reads as a wear gap even when some wear was confirmed.
+  else if (summary.wear && summary.wear.noContactMinutes >= 720) title += ' · ⌚ 미착용 ' + minutesText_(summary.wear.noContactMinutes * 60);
   return upsertManagedEvent_(calendar, events, {
     tag: 'healineDay', key: summary.date, allDay: true, startMs: localDayStartMs_(summary.date),
     title: title, description: dailyDescription_(summary), notes: true,
