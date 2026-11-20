@@ -105,7 +105,9 @@ function hourlyTitle_(hour) {
     hour.sleepMinutes >= 30 && !(hour.steps >= 100) ? '😴 수면 중 기록' :
     hourLooksActive_(hour) ? '🚶 활동 기록' : hour.medianHeartRate === null ? hourMostlyUnworn_(hour) ? '⌚ 미착용' : '⌚ 심박 미수신' : '🫀 심박 기록';
   if (hour.medianHeartRate !== null) title += ' · ' + hour.medianHeartRate + ' bpm';
-  if (hour.steps !== null) title += ' · ' + hour.steps + '보';
+  // Zero steps while the watch was off is missing data, not a still hour, so the count is left out.
+  var unwornNoSteps = title === '⌚ 미착용' && hour.steps === 0;
+  if (hour.steps !== null && !unwornNoSteps) title += ' · ' + hour.steps + '보';
   return title;
 }
 
