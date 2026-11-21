@@ -170,6 +170,8 @@ function upsertHealineDay_(calendar, events, summary) {
   if (summary.wear && summary.wear.contactMinutes < 60) title += ' · ⌚ 착용 확인 ' + minutesText_(summary.wear.contactMinutes * 60);
   // Half a day or more without skin contact also reads as a wear gap even when some wear was confirmed.
   else if (summary.wear && summary.wear.noContactMinutes >= 720) title += ' · ⌚ 미착용 ' + minutesText_(summary.wear.noContactMinutes * 60);
+  // Half a day or more where wear could not be determined (no heart rate, no contact flag) is also a data gap.
+  else if (summary.wear && summary.wear.unknownMinutes >= 720) title += ' · ⌚ 착용 불명 ' + minutesText_(summary.wear.unknownMinutes * 60);
   return upsertManagedEvent_(calendar, events, {
     tag: 'healineDay', key: summary.date, allDay: true, startMs: localDayStartMs_(summary.date),
     title: title, description: dailyDescription_(summary), notes: true,
