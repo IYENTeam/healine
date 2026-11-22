@@ -103,10 +103,12 @@ function hourlyTitle_(hour) {
   // Lone MET samples occur during sleep, so an hour mostly inside Polar sleep is labeled as sleep first.
   var title = hour.elevatedMinutes >= 30 ? '🫀 비슷한 활동 대비 심박 ↑' :
     hour.sleepMinutes >= 30 && !(hour.steps >= 100) ? '😴 수면 중 기록' :
-    hourLooksActive_(hour) ? '🚶 활동 기록' : hour.medianHeartRate === null ? hourMostlyUnworn_(hour) ? '⌚ 미착용' : '⌚ 심박 미수신' : '🫀 심박 기록';
+    hourLooksActive_(hour) ? '🚶 활동 기록' : hour.medianHeartRate === null ? hourMostlyUnworn_(hour) ? '⌚ 미착용' : '⌚ 심박 미수신' :
+    // A few minutes of contact inside a mostly no-contact hour is not a resting hour, so wear is named first.
+    hourMostlyUnworn_(hour) ? '⌚ 대부분 미착용' : '🫀 심박 기록';
   if (hour.medianHeartRate !== null) title += ' · ' + hour.medianHeartRate + ' bpm';
   // Zero steps while the watch was off is missing data, not a still hour, so the count is left out.
-  var unwornNoSteps = title === '⌚ 미착용' && hour.steps === 0;
+  var unwornNoSteps = /^⌚ (대부분 )?미착용/.test(title) && hour.steps === 0;
   if (hour.steps !== null && !unwornNoSteps) title += ' · ' + hour.steps + '보';
   return title;
 }

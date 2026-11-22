@@ -313,7 +313,9 @@ test('hourly title needs sustained movement before calling an hour active', () =
   assert.equal(c.hourlyTitle_(hour({medianHeartRate:null,wear:{contactMinutes:4,noContactMinutes:56,unknownMinutes:0}})),'⌚ 미착용');
   assert.equal(c.hourlyTitle_(hour({medianHeartRate:null,steps:240,wear:{contactMinutes:4,noContactMinutes:56,unknownMinutes:0}})),'🚶 활동 기록 · 240보');
   assert.equal(c.hourlyTitle_(hour({medianHeartRate:null,wear:{contactMinutes:0,noContactMinutes:29,unknownMinutes:31}})),'⌚ 심박 미수신 · 0보');
-  assert.equal(c.hourlyTitle_(hour({wear:{contactMinutes:12,noContactMinutes:48,unknownMinutes:0}})),'🫀 심박 기록 · 72 bpm · 0보');
+  assert.equal(c.hourlyTitle_(hour({wear:{contactMinutes:12,noContactMinutes:48,unknownMinutes:0}})),'⌚ 대부분 미착용 · 72 bpm');
+  assert.equal(c.hourlyTitle_(hour({steps:40,wear:{contactMinutes:12,noContactMinutes:48,unknownMinutes:0}})),'⌚ 대부분 미착용 · 72 bpm · 40보');
+  assert.equal(c.hourlyTitle_(hour({wear:{contactMinutes:40,noContactMinutes:20,unknownMinutes:0}})),'🫀 심박 기록 · 72 bpm · 0보');
 });
 
 test('daily sleep compares start and length with previous nights across midnight', () => {
