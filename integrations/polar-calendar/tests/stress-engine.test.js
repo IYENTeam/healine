@@ -204,3 +204,17 @@ test('unknown skin contact is split by whether heart rate still arrived', () => 
   const none = c.measurementLines_({ wear: { contactMinutes: 15, noContactMinutes: 0, unknownMinutes: 0, unknownWithHeartRateMinutes: 0 } }).find(l => l.startsWith('착용('));
   assert.ok(!none.includes('그중 심박 수신'), none);
 });
+
+test('contact with no steps and stray heart rate counts as no wear', () => {
+  const start = Date.parse('2026-11-22T12:00:00+09:00');
+  const data = { skinContacts: [{ startMs: start, endMs: start + 900000, contact: true }] };
+  const quarter = extra => c.attachQuarterContext_(Object.assign({ startMs: start, endMs: start + 900000 }, extra), data, {});
+  const desk = quarter({ steps: 0, heartRateSampleCount: 3 });
+  assert.equal(desk.wear.contactMinutes, 0);
+  assert.equal(desk.wear.noContactMinutes, 15);
+  assert.equal(desk.wear.strayContactMinutes, 15);
+  assert.equal(quarter({ steps: 0, heartRateSampleCount: 14 }).wear.contactMinutes, 15);
+  assert.equal(quarter({ steps: 40, heartRateSampleCount: 2 }).wear.contactMinutes, 15);
+  assert.equal(quarter({ steps: null, heartRateSampleCount: 0 }).wear.contactMinutes, 15);
+  assert.equal(c.sumWear_([Object.assign(desk, { heartRateSampleCount: 3 })]).strayContactMinutes, 15);
+});
