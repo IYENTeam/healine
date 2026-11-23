@@ -202,12 +202,18 @@ function contactMinutes_(intervals, start, end, contact) {
   return Math.min(Math.round((end - start) / 60000), Math.round(ms / 60000));
 }
 
+// Worn quarters report heart rate about once a minute; fewer than this in 15 minutes is too sparse to count as wear.
+var SPARSE_CONTACT_MAX_HR_SAMPLES = 5;
+
 function attachQuarterContext_(row, data, ppiByStart) {
   var contacts = data.skinContacts || [];
   if (contacts.length) {
     var worn = contactMinutes_(contacts, row.startMs, row.endMs, true);
     var off = Math.min(15 - worn, contactMinutes_(contacts, row.startMs, row.endMs, false));
-    row.wear = { contactMinutes: worn, noContactMinutes: off, unknownMinutes: 15 - worn - off };
+    // A watch left on a desk can still flag contact with a few stray heart-rate samples; with no steps that is not wear.
+    var stray = worn > 0 && row.steps === 0 && row.heartRateSampleCount < SPARSE_CONTACT_MAX_HR_SAMPLES ? worn : 0;
+    row.wear = { contactMinutes: worn - stray, noContactMinutes: off + stray, unknownMinutes: 15 - worn - off,
+      strayContactMinutes: stray };
   } else {
     row.wear = null;
   }
@@ -219,7 +225,7 @@ function attachQuarterContext_(row, data, ppiByStart) {
 function sumWear_(rows) {
   var known = rows.filter(function (r) { return r.wear; });
   if (!known.length) return null;
-  return ['contactMinutes', 'noContactMinutes', 'unknownMinutes'].reduce(function (total, key) {
+  return ['contactMinutes', 'noContactMinutes', 'unknownMinutes', 'strayContactMinutes'].reduce(function (total, key) {
     total[key] = known.reduce(function (n, r) { return n + r.wear[key]; }, 0);
     return total;
   }, {
