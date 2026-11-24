@@ -174,6 +174,8 @@ function upsertHealineDay_(calendar, events, summary) {
   else if (summary.wear && summary.wear.noContactMinutes >= 720) title += ' · ⌚ 미착용 ' + minutesText_(summary.wear.noContactMinutes * 60);
   // Half a day or more where wear could not be determined (no heart rate, no contact flag) is also a data gap.
   else if (summary.wear && summary.wear.unknownMinutes >= 720) title += ' · ⌚ 착용 불명 ' + minutesText_(summary.wear.unknownMinutes * 60);
+  var cutoffMs = observationCutoffMs_(summary);
+  if (cutoffMs !== null) title += ' · ⌛ ' + seoulHourPure_(cutoffMs) + '시 이후 미수신';
   return upsertManagedEvent_(calendar, events, {
     tag: 'healineDay', key: summary.date, allDay: true, startMs: localDayStartMs_(summary.date),
     title: title, description: dailyDescription_(summary), notes: true,
@@ -407,6 +409,8 @@ function dailyDescription_(summary) {
         ' · MET 2 이상 ' + (hour.activityMinutes ? hour.activeMinutes + '분' : '미수신') +
         ' · 개인 경계 초과 ' + (hour.comparedWindows ? hour.elevatedWindows + '/' + hour.comparedWindows + '구간' : '비교 보류'));
     });
+    var cutoffMs = observationCutoffMs_(summary);
+    if (cutoffMs !== null) lines.push(clockTime_(cutoffMs) + ' 이후 · 관측 미수신 (시계 동기화 끊김 또는 미수집, 0보·휴식이 아님)');
   }
   if (n && (n.sleepTip || n.vitalityTip || n.exerciseTip)) {
     lines.push('', 'Polar의 제안 (원문)');
@@ -514,6 +518,16 @@ function measurementLines_(summary) {
   if ((summary.missingExtendedScopes || []).length) lines.push('추가 측정 읽기 권한 필요: ' +
     summary.missingExtendedScopes.join(', ') + ' · Healine 웹 앱의 "측정 권한 추가 화면"에서 연결하세요.');
   return lines.length ? ['', '착용·온도·측정 테스트'].concat(lines) : [];
+}
+
+// End of the last observed hour when a finished day stops receiving data 3+ hours before midnight; else null.
+function observationCutoffMs_(summary, nowMs) {
+  var dayEndMs = localDayStartMs_(summary.date) + 86400000;
+  if ((nowMs === undefined ? Date.now() : nowMs) < dayEndMs) return null;
+  var lastEndMs = (summary.hours || []).filter(hasHourlyObservations_).reduce(function (max, hour) {
+    return Math.max(max, hour.endMs);
+  }, 0);
+  return lastEndMs && dayEndMs - lastEndMs >= 3 * 3600000 ? lastEndMs : null;
 }
 
 function hasHourlyObservations_(hour) {

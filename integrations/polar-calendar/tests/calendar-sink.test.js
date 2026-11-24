@@ -102,6 +102,20 @@ test('daily summaries are idempotent, free of reminders, and preserve personal n
   c.upsertHealineDay_(calendar,events,day);
   assert.ok(e.description.endsWith('오후 회의 후 피곤했음'));
 });
+test('a finished day whose data stops hours before midnight says when observations ended', () => {
+  const {c,calendar,saved}=setup();
+  const day=c.buildDailySummary_('2026-11-24',[],{sleepAccess:'granted'});
+  const hour=h=>({startMs:Date.parse(`2026-11-24T${h}:00:00+09:00`),endMs:Date.parse(`2026-11-24T${h}:00:00+09:00`)+3600000,
+    heartRateSampleCount:10,steps:50,activityMinutes:60,activeMinutes:5,medianHeartRate:79,minHeartRate:60,maxHeartRate:84});
+  day.hours=[hour('07'),hour('17')];
+  assert.equal(c.observationCutoffMs_(day,Date.parse('2026-11-24T20:00:00+09:00')),null);
+  assert.equal(c.observationCutoffMs_(day,Date.parse('2026-11-25T07:30:00+09:00')),Date.parse('2026-11-24T18:00:00+09:00'));
+  c.upsertHealineDay_(calendar,[],day);
+  assert.ok(saved[0].title.endsWith(' · ⌛ 18시 이후 미수신'));
+  assert.ok(saved[0].description.includes('18:00 이후 · 관측 미수신'));
+  day.hours.push(hour('22'));
+  assert.equal(c.observationCutoffMs_(day,Date.parse('2026-11-25T07:30:00+09:00')),null);
+});
 test('sleep crossing midnight updates its original tagged event', () => {
   const {c,calendar,saved}=setup();
   const sleep={date:'2026-09-17',startMs:Date.parse('2026-09-16T23:00:00+09:00'),endMs:Date.parse('2026-09-17T07:00:00+09:00'),durationMinutes:480};
