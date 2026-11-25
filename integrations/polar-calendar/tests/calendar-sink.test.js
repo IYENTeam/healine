@@ -116,6 +116,18 @@ test('a finished day whose data stops hours before midnight says when observatio
   day.hours.push(hour('22'));
   assert.equal(c.observationCutoffMs_(day,Date.parse('2026-11-25T07:30:00+09:00')),null);
 });
+test('a finished day with no hourly observations is titled as a whole-day collection gap', () => {
+  const {c,calendar,saved}=setup();
+  const day=c.buildDailySummary_('2026-11-25',[],{sleepAccess:'granted'});
+  day.hours=[];
+  assert.equal(c.finishedDayWithoutObservations_(day,Date.parse('2026-11-25T20:00:00+09:00')),false);
+  assert.equal(c.finishedDayWithoutObservations_(day,Date.parse('2026-11-26T07:30:00+09:00')),true);
+  c.upsertHealineDay_(calendar,[],day);
+  assert.ok(saved[0].title.includes(' · ⌛ 하루 종일 미수신'));
+  assert.ok(!saved[0].title.includes('밤 심박 미수신'));
+  day.hours=[{startMs:Date.parse('2026-11-25T09:00:00+09:00'),endMs:Date.parse('2026-11-25T10:00:00+09:00'),heartRateSampleCount:5,steps:null,activityMinutes:0}];
+  assert.equal(c.finishedDayWithoutObservations_(day,Date.parse('2026-11-26T07:30:00+09:00')),false);
+});
 test('sleep crossing midnight updates its original tagged event', () => {
   const {c,calendar,saved}=setup();
   const sleep={date:'2026-09-17',startMs:Date.parse('2026-09-16T23:00:00+09:00'),endMs:Date.parse('2026-09-17T07:00:00+09:00'),durationMinutes:480};

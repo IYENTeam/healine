@@ -163,7 +163,10 @@ function upsertHealineDay_(calendar, events, summary) {
   var title = '🌿 회복 ' + summary.recoveryLabel;
   // No recovery plus a night with zero heart-rate windows is a wear/sync gap; say so where it is seen.
   var night = summary.overnightHeartRate;
-  if (summary.recoveryIndicator === null && night && night.heartRateWindows === 0) title += ' · ⌚ 밤 심박 미수신';
+  var silentDay = finishedDayWithoutObservations_(summary);
+  // A finished day with no hourly observation at all is a collection gap for the whole day, not just the night.
+  if (silentDay) title += ' · ⌛ 하루 종일 미수신';
+  else if (summary.recoveryIndicator === null && night && night.heartRateWindows === 0) title += ' · ⌚ 밤 심박 미수신';
   if (summary.syncWarning) title = '⚠️ 수집 중단 · 회복 ' + summary.recoveryLabel;
   if (summary.sleep) title += ' · 수면 구간 ' + durationText_(summary.sleep.durationMinutes);
   if ((summary.workouts || []).length) title += ' · 운동 ' + summary.workouts.length + '회';
@@ -518,6 +521,12 @@ function measurementLines_(summary) {
   if ((summary.missingExtendedScopes || []).length) lines.push('추가 측정 읽기 권한 필요: ' +
     summary.missingExtendedScopes.join(', ') + ' · Healine 웹 앱의 "측정 권한 추가 화면"에서 연결하세요.');
   return lines.length ? ['', '착용·온도·측정 테스트'].concat(lines) : [];
+}
+
+// True when the day has ended and not one hour received heart rate, steps or activity.
+function finishedDayWithoutObservations_(summary, nowMs) {
+  var dayEndMs = localDayStartMs_(summary.date) + 86400000;
+  return (nowMs === undefined ? Date.now() : nowMs) >= dayEndMs && !(summary.hours || []).some(hasHourlyObservations_);
 }
 
 // End of the last observed hour when a finished day stops receiving data 3+ hours before midnight; else null.
