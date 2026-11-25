@@ -231,7 +231,8 @@ test('daily title names half a day where wear could not be determined', () => {
 
 test('daily title names a night with no heart rate when recovery is missing', () => {
   const { context: c } = paired();
-  const base = c.buildDailySummary_('2026-09-17', [], {});
+  const base = { ...c.buildDailySummary_('2026-09-17', [], {}),
+    hours: [{ startMs: Date.parse('2026-09-17T10:00:00+09:00'), endMs: Date.parse('2026-09-17T11:00:00+09:00'), heartRateSampleCount: 5, steps: 20, activityMinutes: 60 }] };
   const title = (extra) => { const { calendar, saved } = calendarFixture(); c.upsertHealineDay_(calendar, [], { ...base, ...extra }); return saved[0].title; };
   assert.ok(title({ overnightHeartRate: { fromHour: 0, toHour: 6, windows: 24, heartRateWindows: 0 } }).startsWith('🌿 회복 아직 없음 · ⌚ 밤 심박 미수신'));
   assert.ok(!title({ overnightHeartRate: { fromHour: 0, toHour: 6, windows: 24, heartRateWindows: 3 } }).includes('밤 심박'));
