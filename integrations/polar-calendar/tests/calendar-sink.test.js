@@ -128,6 +128,15 @@ test('a finished day with no hourly observations is titled as a whole-day collec
   day.hours=[{startMs:Date.parse('2026-11-25T09:00:00+09:00'),endMs:Date.parse('2026-11-25T10:00:00+09:00'),heartRateSampleCount:5,steps:null,activityMinutes:0}];
   assert.equal(c.finishedDayWithoutObservations_(day,Date.parse('2026-11-26T07:30:00+09:00')),false);
 });
+test('a moderate recharge with a low ANS rating says so in the day title', () => {
+  const {c,calendar,saved}=setup();
+  const day=c.buildDailySummary_('2026-11-27',[],{sleepAccess:'granted'});
+  day.recoveryLabel='보통';day.recoveryIndicator=4;day.nightly={ansRate:2};
+  c.upsertHealineDay_(calendar,[],day);
+  assert.ok(saved[0].title.startsWith('🌿 회복 보통 (자율신경 낮음 2/5)'));
+  assert.equal(c.recoveryAnsNote_({...day,nightly:{ansRate:3}}),'');
+  assert.equal(c.recoveryAnsNote_({...day,recoveryIndicator:3}),'');
+});
 test('sleep crossing midnight updates its original tagged event', () => {
   const {c,calendar,saved}=setup();
   const sleep={date:'2026-09-17',startMs:Date.parse('2026-09-16T23:00:00+09:00'),endMs:Date.parse('2026-09-17T07:00:00+09:00'),durationMinutes:480};

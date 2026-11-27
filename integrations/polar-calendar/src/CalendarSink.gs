@@ -159,15 +159,22 @@ function hourlyDescription_(hour) {
   return lines.join('\n');
 }
 
+// Polar's overall recharge can read 보통 while its ANS rating is low; the description already warns, so the title must too.
+function recoveryAnsNote_(summary) {
+  var ans = summary.nightly ? validNumber_(summary.nightly.ansRate) : null;
+  return ans !== null && ans <= 2 && summary.recoveryIndicator !== null && summary.recoveryIndicator > 3
+    ? ' (자율신경 낮음 ' + ans + '/5)' : '';
+}
+
 function upsertHealineDay_(calendar, events, summary) {
-  var title = '🌿 회복 ' + summary.recoveryLabel;
+  var title = '🌿 회복 ' + summary.recoveryLabel + recoveryAnsNote_(summary);
   // No recovery plus a night with zero heart-rate windows is a wear/sync gap; say so where it is seen.
   var night = summary.overnightHeartRate;
   var silentDay = finishedDayWithoutObservations_(summary);
   // A finished day with no hourly observation at all is a collection gap for the whole day, not just the night.
   if (silentDay) title += ' · ⌛ 하루 종일 미수신';
   else if (summary.recoveryIndicator === null && night && night.heartRateWindows === 0) title += ' · ⌚ 밤 심박 미수신';
-  if (summary.syncWarning) title = '⚠️ 수집 중단 · 회복 ' + summary.recoveryLabel;
+  if (summary.syncWarning) title = '⚠️ 수집 중단 · 회복 ' + summary.recoveryLabel + recoveryAnsNote_(summary);
   if (summary.sleep) title += ' · 수면 구간 ' + durationText_(summary.sleep.durationMinutes);
   if ((summary.workouts || []).length) title += ' · 운동 ' + summary.workouts.length + '회';
   if (summary.steps !== null) title += ' · 관측 ' + summary.steps + '보';
